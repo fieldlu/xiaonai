@@ -16,6 +16,9 @@ WS_HOST = "127.0.0.1"
 WS_PORT = 8080
 HTTP_PORT = 8081
 
+# 08-15: 项目根目录（替代硬编码部署路径，提升可移植性 + 去除服务器路径泄露）
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 async def _run_pending_batch(batch_key, created_at):
     """Fire batch after short debounce, hold open during processing for late-join messages."""
     try:
@@ -119,8 +122,8 @@ batch_tasks = {}
 # Toxic mode
 def _load_toxic_users():
     try:
-        if os.path.exists('/home/ubuntu/qq-bot/data/toxic_users.json'):
-            return set(json.loads(open('/home/ubuntu/qq-bot/data/toxic_users.json').read()))
+        if os.path.exists(os.path.join(_PROJECT_ROOT, "data", "toxic_users.json")):
+            return set(json.loads(open(os.path.join(_PROJECT_ROOT, "data", "toxic_users.json")).read()))
     except: pass
     return set()
 
@@ -154,7 +157,7 @@ def _get_personality():
     return _personality_module
 
 import sys as _sys
-_sys.path.insert(0, '/home/ubuntu/qq-bot')
+_sys.path.insert(0, _PROJECT_ROOT)
 from sanitizer import sanitize_message
 
 # Session resume: inject recent context after session cleanup
@@ -182,7 +185,7 @@ from reminder_parser import parse_reminder
 
 _memory_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-DOWNLOAD_DIR = "/home/ubuntu/qq-bot/data/uploads"
+DOWNLOAD_DIR = os.path.join(_PROJECT_ROOT, "data", "uploads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 def load_group_policy():
@@ -993,7 +996,7 @@ def _exec_course(q, out):
     if not fkw:
         fkw = "YOUR_MAJOR"
     sem = _detect_semester(q)
-    dirs = ["/home/ubuntu/qq-bot/data/knowledge",
+    dirs = [os.path.join(_PROJECT_ROOT, "data", "knowledge"),
             _os.path.expanduser("~/.openclaw/workspace/knowledge")]
     best = None  # (path, credit_score, content)
     for d in dirs:
@@ -1040,7 +1043,7 @@ def _exec_reminder(r):
     """Execute a parsed reminder action (set/list/delete/clear). Returns reply string."""
     import subprocess, os as _os, json as _json
     qqbot_dir = _os.path.dirname(__file__)
-    _TD = "/home/ubuntu/qq-bot/data/timed_msg.json"
+    _TD = os.path.join(_PROJECT_ROOT, "data", "timed_msg.json")
     if r["action"] == "set":
         # 去重
         try:
@@ -1227,7 +1230,7 @@ def _handle_reminder_clear(msg):
     if not _REMINDER_CLEAR_RE.search(msg):
         return None
     try:
-        _td = "/home/ubuntu/qq-bot/data/timed_msg.json"
+        _td = os.path.join(_PROJECT_ROOT, "data", "timed_msg.json")
         _n = 0
         if os.path.exists(_td):
             _n = len(_json.load(open(_td, encoding="utf-8")))
@@ -1272,7 +1275,7 @@ def _handle_reminder(msg, uid, gid):
     # 去重: 已有相同未发送提醒则不重复添加
     try:
         import json as _json
-        _tf = "/home/ubuntu/qq-bot/data/timed_msg.json"
+        _tf = os.path.join(_PROJECT_ROOT, "data", "timed_msg.json")
         if os.path.exists(_tf):
             for _e in _json.load(open(_tf, encoding="utf-8")):
                 if (not _e.get("sent") and _e.get("send_at") == send_at
@@ -1493,7 +1496,7 @@ async def handle_bot_join(ws, data):
         cf = Path(os.path.expanduser("~/.openclaw/agents/main/agent/group_config.json"))
         cf.parent.mkdir(parents=True, exist_ok=True)
         cf.write_text(json.dumps(GROUP_POLICY, ensure_ascii=False, indent=2))
-        bf = Path("/home/ubuntu/qq-bot/data/group_config.json")
+        bf = Path(os.path.join(_PROJECT_ROOT, "data", "group_config.json"))
         bf.parent.mkdir(parents=True, exist_ok=True)
         bf.write_text(json.dumps(GROUP_POLICY, ensure_ascii=False, indent=2))
         log.info("[JOIN] Group %d added to normal_groups, config saved.", gid)
@@ -1964,7 +1967,7 @@ async def handle_qq_message(ws, data):
     _is_clear = any(kw in msg_for_agent for kw in _clear_keywords)
     _is_admin = role == "admin"
     if _is_clear and _is_admin:
-        _p = _sp.run(["python3", "/home/ubuntu/qq-bot/session_cleaner_v2.py",
+        _p = _sp.run(["python3", os.path.join(_PROJECT_ROOT, "session_cleaner_v2.py"),
                       "--purge-session", session_key],
                      capture_output=True, timeout=10)
         log.info("PURGE key=%s rc=%s out=%s", session_key, _p.returncode,
