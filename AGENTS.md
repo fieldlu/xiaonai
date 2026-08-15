@@ -1,5 +1,7 @@
 # AGENTS.md - Your Workspace
 
+> ⚠️ **给 AI 代码代理的说明**：本文件是**机器人小奈的运行时人格配置**（OpenClaw Agent 的启动指令——怎么说话、怎么记忆、怎么用工具），不是仓库开发指南。**开发/修改代码请读 [CLAUDE.md](CLAUDE.md)**。SOUL.md / IDENTITY.md / TOOLS.md 同为人格数据，勿当开发文档改写。
+
 This folder is home. Treat it that way.
 
 ## First Run

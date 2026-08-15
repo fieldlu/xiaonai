@@ -4,11 +4,14 @@
 
 **一个在班级群长大的 AI 群助手** —— 基于 NapCat + OpenClaw + MiMo 的多功能 QQ 群聊机器人
 
+**🏫 武汉理工大学（WHUT）定制版** —— 深度对接 whut.edu.cn 校园系统（CAS 登录 / WebVPN / 招生 API / 校园通知）
+
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![NapCat](https://img.shields.io/badge/NapCat-OneBot%20v11-3E8E7E?style=flat-square)](https://napneko.github.io/)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Agent%20Engine-6C5CE7?style=flat-square)](https://openclaw.ai)
 [![MiMo](https://img.shields.io/badge/MiMo-V2.5%20Multimodal-FF6B6B?style=flat-square)](https://opencode.ai)
+[![WHUT](https://img.shields.io/badge/🏫-WHUT%20Customized-1a5276?style=flat-square)](#-学校接入说明)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 **知识库问答 · 工具路由 · 定时推送 · 记忆系统 · 健康自愈**
@@ -260,13 +263,24 @@ CI（GitHub Actions）自动执行：Ruff 代码检查 + 全量语法编译 + �
 
 ## 🏫 学校接入说明
 
-本仓库代码中包含对接武汉理工大学（whut.edu.cn）的系统接口（CAS 登录、招生 API、校园通知抓取）——**这是原始部署场景的遗留**，域名是学校公开官网，不含个人敏感信息。
+> **本项目是武汉理工大学（WHUT）定制版**，诞生于 WHUT 真实班级群，深度对接学校公开系统：
+>
+> | 校园模块 | 对接内容 | 相关文件 |
+> |---------|---------|---------|
+> | 统一身份认证 | CAS 登录 + WebVPN（RSA 加密密码、cookie 双兜底） | `src/whut/client.py`、`campus_search.py`、`webvpn_login.py` |
+> | 招生数据 | 历年录取分数 / 位次 / 招生计划（官方 API） | `score_query.py`、`whut_score_api.py`、`zs_plan_query.py` |
+> | 校园通知 | 本科生院 / 教务处 / 学院通知抓取与推送 | `campus_search.py`、`campus_daily.py` |
+> | 校内页面 | WebVPN 编码抓取与正文解析 | `campus_fetch.py`、`src/whut/client.py` |
 
-如需用于其他学校，请替换相关模块：
+> 以上均为学校**公开官网域名**（whut.edu.cn），不含个人敏感信息。账号凭据一律走 `.env`，源码只有占位符。
 
-- `campus_search.py`：CAS 登录流程 → 改为你学校的统一身份认证
+**用于其他学校**：请替换相关模块——
+
+- `campus_search.py` / `src/whut/client.py`：CAS 登录流程 → 改为你学校的统一身份认证
 - `score_query.py` / `zs_plan_query.py`：招生数据 API → 改为你省/校的数据源
 - `docs/KNOWLEDGE-BASE-GUIDE.md`：构建你自己的知识库
+
+若不使用校园功能，忽略即可（相关模块不会被触发）。
 
 若不使用校园功能，忽略即可（相关模块不会被触发）。
 
