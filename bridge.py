@@ -1963,7 +1963,8 @@ async def handle_qq_message(ws, data):
 
     # Handle clear context commands BEFORE calling agent (avoid session takeover race)
     import subprocess as _sp
-    _clear_keywords = ["清除上下文", "清记忆", "重置上下文", "清空本群记忆", "清除记忆"]
+    # 08-15: 补「清空上下文」（用户原话）——列表原只有「清除上下文」导致匹配失败
+    _clear_keywords = ["清除上下文", "清空上下文", "清记忆", "重置上下文", "清空本群记忆", "清除记忆"]
     _is_clear = any(kw in msg_for_agent for kw in _clear_keywords)
     _is_admin = role == "admin"
     if _is_clear and _is_admin:
