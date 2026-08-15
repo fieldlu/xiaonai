@@ -1341,7 +1341,7 @@ async def run_conversation(history: list[dict], user_id: int = 0, nickname: str 
                 target = int(parts[0])
                 is_group = parts[1] == "1"
                 if target == 0:
-                    result = "请指定群号！班级通知群=CLASS_GROUP_PLACEHOLDER，班级闲聊群=CHAT_GROUP_PLACEHOLDER，资料共享群=RESOURCE_GROUP_PLACEHOLDER。要发到哪个群？"
+                    result = "请指定群号！班级通知群=CLASS_GROUP_PLACEHOLDER，班级闲聊群=CHAT_GROUP_PLACEHOLDER。要发到哪个群？"
                 else:
                     msg = parts[2] if len(parts) > 2 else ""
                     from nonebot import get_bot

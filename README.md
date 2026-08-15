@@ -213,7 +213,6 @@ python3 search/smart_search.py "问题"   # 知识库检索测试
 | `CHAT_GROUP_PLACEHOLDER` | 无需 @ 主动聊天的群号（chat_groups，如日常交流群） |
 | `TEST_GROUP_PLACEHOLDER` | 测试群号（test_group） |
 | `CADRE_GROUP_PLACEHOLDER` | 干部群号（通常归 class_groups，需 @） |
-| `RESOURCE_GROUP_PLACEHOLDER` | 资料共享群号 |
 | `WHUT_ACCOUNT_PLACEHOLDER` | (可选) 校内系统账号 |
 | `WHUT_PASSWORD_PLACEHOLDER` | (可选) 校内系统密码 |
 | `RESOURCE_EMAIL_PLACEHOLDER` | (可选) 资源站邮箱 |

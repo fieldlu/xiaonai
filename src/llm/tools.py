@@ -130,13 +130,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "admin_send_message",
-            "description": "【群通知/群发】发消息到指定QQ群。用户说群名对照：班级通知群=CLASS_GROUP_PLACEHOLDER，班级闲聊群=CHAT_GROUP_PLACEHOLDER，资料共享群=RESOURCE_GROUP_PLACEHOLDER。如果没指定群，先问发到哪个群。",
+            "description": "【群通知/群发】发消息到指定QQ群。用户说群名对照：班级通知群=CLASS_GROUP_PLACEHOLDER，班级闲聊群=CHAT_GROUP_PLACEHOLDER。如果没指定群，先问发到哪个群。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "target": {
                         "type": "integer",
-                        "description": "目标群QQ号。班级通知群=CLASS_GROUP_PLACEHOLDER，班级闲聊群=CHAT_GROUP_PLACEHOLDER，资料共享群=RESOURCE_GROUP_PLACEHOLDER。必须填具体群号！",
+                        "description": "目标群QQ号。班级通知群=CLASS_GROUP_PLACEHOLDER，班级闲聊群=CHAT_GROUP_PLACEHOLDER。必须填具体群号！",
                     },
                     "message": {
                         "type": "string",
