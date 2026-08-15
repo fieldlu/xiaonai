@@ -179,7 +179,7 @@ _SCRIPT_DIRS = {
 
 def _script_path(name: str) -> str:
     """Resolve a tool script path under its functional directory."""
-    return _os.path.join(_os.path.dirname(__file__), _SCRIPT_DIRS.get(name, ""), name)
+    return os.path.join(os.path.dirname(__file__), _SCRIPT_DIRS.get(name, ""), name)
 
 # Session resume: inject recent context after session cleanup
 def _check_session_resume(session_key):

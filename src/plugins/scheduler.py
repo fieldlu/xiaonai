@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -136,7 +136,6 @@ async def fetch_raw_news(count: int = 10) -> list[str]:
             r = await cli.get('https://top.baidu.com/board?tab=realtime')
             if r.status_code == 200:
                 _pat = chr(123) + r'[^{}]*"word"[^{}]*' + chr(125)
-                import json
                 for b in re.findall(_pat, r.text):
                     try:
                         d2 = json.loads(b)
@@ -153,7 +152,6 @@ async def fetch_raw_news(count: int = 10) -> list[str]:
         except: pass
     if items:
         sent.update(items)
-        from datetime import datetime
         import json as _json
         NEWS_CACHE.write_text(_json.dumps({'titles': list(sent)[-300:], 'updated': str(datetime.now())}, ensure_ascii=False), encoding='utf-8')
     print(f'[scheduler] Fetch: {len(items)} items')
@@ -275,7 +273,6 @@ ALARMS_FILE = DATA_DIR / "alarms.json"
 
 
 async def schedule_reminder(target: int, message: str, delay_seconds: int, is_group: bool = False):
-    from datetime import timedelta
     run_at = datetime.now() + timedelta(seconds=delay_seconds)
     job_id = f"remind_{target}_{int(run_at.timestamp())}"
     scheduler.add_job(
@@ -294,7 +291,6 @@ def schedule_alarm(user_id: int, message: str, time_str: str, is_group: bool = F
             h, m = map(int, time_str.split(":"))
             run_at = now.replace(hour=h, minute=m, second=0, microsecond=0)
             if run_at <= now:
-                from datetime import timedelta
                 run_at += timedelta(days=1)
     except Exception:
         return ""
@@ -463,7 +459,6 @@ except Exception as e:
 
 async def run_weekly_report():
     """每周日 22:00 生成好感度周报，仅推送给班长。"""
-    from datetime import timedelta
 
     users_dir = DATA_DIR / "memory" / "users"
     if not users_dir.exists():

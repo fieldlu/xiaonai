@@ -59,6 +59,14 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # re-exported names
+# 占位符模式（XXX_PLACEHOLDER 作为变量名，部署时 sed 全局替换为真实值）→ 豁免 F821
+"bridge.py" = ["F821"]
+"scheduler_v5.py" = ["F821"]
+"admin/health_notify.py" = ["F821"]
+"admin/proactive_check.py" = ["F821"]
+"admin/timed_msg.py" = ["F821"]
+"src/core/*.py" = ["F821"]
+"src/plugins/*.py" = ["F821"]
 
 # ------------------------------------------------------------
 # Pytest

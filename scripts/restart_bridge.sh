@@ -11,7 +11,7 @@ find /opt/xiaonai/__pycache__ -delete 2>/dev/null || true
 find /opt/xiaonai/bridge_pkg/__pycache__ -delete 2>/dev/null || true
 
 echo "Starting bridge fresh..."
-cd /opt/xiaonai
+cd /opt/xiaonai || exit 1
 nohup python3 bridge.py > /tmp/bridge_new.log 2>&1 &
 BGPID=$!
 sleep 4

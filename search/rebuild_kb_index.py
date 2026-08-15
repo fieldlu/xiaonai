@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Rebuild all KB indexes: index.json + chunked semantic (npz+pkl) + BM25 (jieba)."""
-import json, re, sys
+import json, re, sys, os
 from pathlib import Path
 
 KB = Path('/opt/xiaonai/data/knowledge')
