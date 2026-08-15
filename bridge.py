@@ -119,8 +119,8 @@ batch_tasks = {}
 # Toxic mode
 def _load_toxic_users():
     try:
-        if os.path.exists('/opt/xiaonai/data/toxic_users.json'):
-            return set(json.loads(open('/opt/xiaonai/data/toxic_users.json').read()))
+        if os.path.exists('/home/ubuntu/qq-bot/data/toxic_users.json'):
+            return set(json.loads(open('/home/ubuntu/qq-bot/data/toxic_users.json').read()))
     except: pass
     return set()
 
@@ -154,32 +154,8 @@ def _get_personality():
     return _personality_module
 
 import sys as _sys
-_sys.path.insert(0, '/opt/xiaonai')
+_sys.path.insert(0, '/home/ubuntu/qq-bot')
 from sanitizer import sanitize_message
-
-# 工具脚本目录映射（仓库按功能分目录：campus/ search/ admin/ tools/）
-_SCRIPT_DIRS = {
-    "campus_daily.py": "campus", "campus_fetch.py": "campus", "campus_search.py": "campus",
-    "webvpn_login.py": "campus", "webvpn_rsa_login.py": "campus", "whut_login.py": "campus",
-    "whut_plan_api.py": "campus", "whut_proxy.py": "campus", "whut_score_api.py": "campus",
-    "score_query.py": "search", "zs_plan_query.py": "search", "zs_whut_search.py": "search",
-    "kb_manage.py": "search", "kb_semantic.py": "search", "kb_search.py": "search",
-    "rebuild_kb_index.py": "search", "smart_search.py": "search", "searxng_proxy.py": "search",
-    "scholar_search.py": "search", "resource_search.py": "search",
-    "admin_cli.py": "admin", "admin_group_control.py": "admin", "health_notify.py": "admin",
-    "self_test.py": "admin", "bridge_health.py": "admin", "proactive_check.py": "admin",
-    "session_cleaner.py": "admin", "session_cleaner_v2.py": "admin", "timed_msg.py": "admin",
-    "alarm_manager.py": "admin", "exam_countdown.py": "admin", "notify_classmate.py": "admin",
-    "docx_export_helper.py": "tools", "xiaonai_doc_tools_v2.py": "tools", "xlsx_to_docx.py": "tools",
-    "make_simple_docx.py": "tools", "fill_xlsx.py": "tools", "cq_convert.py": "tools",
-    "say_voice_cli.py": "tools", "wechat_fetch.py": "tools", "tools_update.py": "tools",
-    "onebot_http_proxy.py": "tools", "napcat_ws_bridge.py": "tools",
-    "consultation_server.py": "tools", "safe_cleanup_test.py": "tools",
-}
-
-def _script_path(name: str) -> str:
-    """Resolve a tool script path under its functional directory."""
-    return os.path.join(os.path.dirname(__file__), _SCRIPT_DIRS.get(name, ""), name)
 
 # Session resume: inject recent context after session cleanup
 def _check_session_resume(session_key):
@@ -206,7 +182,7 @@ from reminder_parser import parse_reminder
 
 _memory_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-DOWNLOAD_DIR = "/opt/xiaonai/data/uploads"
+DOWNLOAD_DIR = "/home/ubuntu/qq-bot/data/uploads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 def load_group_policy():
@@ -441,7 +417,7 @@ def _load_contact_map():
     if _CONTACT_MAP is not None and now - _CONTACT_MAP_TS < 60:
         return _CONTACT_MAP
     kb_dir = _os.path.join(_os.path.dirname(__file__), "data", "knowledge")
-    cands = ["YOUR_MAJOR班级通讯录.md", "YOUR_CONTACTS_FILE.md"]
+    cands = ["YOUR_MAJOR班级通讯录.md", "YOUR_MAJOR_ABBR班级通讯录.md"]
     kb_path = None
     for cn in cands:
         pp = _os.path.join(kb_dir, cn)
@@ -561,7 +537,7 @@ def _inject_command_data_v1(msg, user_name=""):
     if wx_urls:
         for wx_url in wx_urls[:3]:
             try:
-                r = subprocess.run(["python3", _script_path("wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
+                r = subprocess.run(["python3", _os.path.join(qqbot_dir, "wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
                 if r.stdout and len(r.stdout) > 200:
                     d = _json.loads(r.stdout)
                     title = d.get("title", "")
@@ -577,7 +553,7 @@ def _inject_command_data_v1(msg, user_name=""):
         yr = 2026; ym = re.findall(r"20[2-9]\d", msg)
         if ym: yr = int(ym[0])
         try:
-            r = subprocess.run(["python3", _script_path("zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
             if r.stdout and "[X]" not in r.stdout[:10]:
                 out.append(r.stdout.strip())
         except: pass
@@ -595,7 +571,7 @@ def _inject_command_data_v1(msg, user_name=""):
         if yr not in years: years = [yr] + years[:2]
         for y in years[:3]:
             try:
-                args = ["python3", _script_path("score_query.py"), pv, str(y), "--smart"]
+                args = ["python3", _os.path.join(qqbot_dir, "score_query.py"), pv, str(y), "--smart"]
                 if score_val: args.append("--score=" + str(score_val))
                 r = subprocess.run(args, capture_output=True, text=True, timeout=25)
                 if r.stdout and len(r.stdout) > 80:
@@ -606,7 +582,7 @@ def _inject_command_data_v1(msg, user_name=""):
     # -- Campus notices --
     if re.search(r"学校通知|校园通知|综合信息|本科生院|教务处通知|研究生院通知|campus|notice|查.*通知|有什么通知|最新.*通知|最近.*通知|看.*通知|新闻|校园网|综合新闻|校内通知", msg):
         try:
-            r = subprocess.run(["python3", _script_path("campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout) > 50:
                 out.append("[学校通知 - i.whut.edu.cn]\n" + r.stdout.strip())
         except: pass
@@ -614,7 +590,7 @@ def _inject_command_data_v1(msg, user_name=""):
     kw = r"课件|题库|资料|资源|习题|复习|试卷|答案|教材|ppt|PPT|pdf|PDF|电子书|笔记|期末|考试题|历年|模拟|考研|保研|毕设|大物|高数|线代|概统|概率|数电|模电|计组|计网|复变|思修|史纲|近代史|马原|毛概|习概|四级|六级|CET|工图|电工|材力|理力|数分|高代"
     if re.search(kw, msg) and len(msg) > 3:
         try:
-            r = subprocess.run(["python3", _script_path("resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout.strip()) > 50:
                 raw_lines = [ln for ln in r.stdout.strip().split("\n") if ln.strip() and not ln.startswith("SITE")]
                 if raw_lines:
@@ -626,7 +602,7 @@ def _inject_command_data_v1(msg, user_name=""):
     is_note = len(msg) > 200
     if not out and is_q and not is_cmd and not is_note and len(msg) > 5:
         try:
-            r = subprocess.run(["python3", _script_path("smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
             if r.stdout and len(r.stdout) > 100:
                 out.append("[知识库搜索结果]\n" + r.stdout.strip()[:4000])
         except: pass
@@ -774,7 +750,7 @@ def _exec_plan(q, out):
     yr = 2026; ym = re.findall(r"20[2-9]\d", q)
     if ym: yr = int(ym[0])
     try:
-        r = subprocess.run(["python3", _script_path("zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
+        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
         if r.stdout and "[X]" not in r.stdout[:10]:
             out.append(r.stdout.strip())
     except Exception:
@@ -796,7 +772,7 @@ def _exec_score(q, out):
     if yr not in years: years = [yr] + years[:2]
     for y in years[:3]:
         try:
-            args = ["python3", _script_path("score_query.py"), pv, str(y), "--smart"]
+            args = ["python3", _os.path.join(qqbot_dir, "score_query.py"), pv, str(y), "--smart"]
             if score_val: args.append("--score=" + str(score_val))
             r = subprocess.run(args, capture_output=True, text=True, timeout=25)
             if r.stdout and len(r.stdout) > 80:
@@ -811,7 +787,7 @@ def _exec_campus(out):
     import subprocess, os as _os
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _script_path("campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
         if r.stdout and len(r.stdout) > 50:
             out.append("[学校通知 - i.whut.edu.cn]\n" + r.stdout.strip())
     except Exception:
@@ -822,7 +798,7 @@ def _exec_resource(q, out):
     import subprocess, os as _os
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _script_path("resource_search.py"), q[:200]], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "resource_search.py"), q[:200]], capture_output=True, text=True, timeout=30)
         if r.stdout and len(r.stdout.strip()) > 50:
             raw_lines = [ln for ln in r.stdout.strip().split("\n") if ln.strip() and not ln.startswith("SITE")]
             if raw_lines:
@@ -836,7 +812,7 @@ def _exec_exam(q, out):
     import subprocess, os as _os
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _script_path("exam_countdown.py"), "list"], capture_output=True, text=True, timeout=15)
+        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "exam_countdown.py"), "list"], capture_output=True, text=True, timeout=15)
         if r.stdout and len(r.stdout.strip()) > 0:
             out.append("[考试倒计时]\n" + r.stdout.strip()[:1500])
     except Exception:
@@ -848,7 +824,7 @@ def _exec_paper(q, out):
     import subprocess, os as _os, json as _json
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _script_path("scholar_search.py"), "search", q[:120], "--rows", "3"],
+        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "scholar_search.py"), "search", q[:120], "--rows", "3"],
                            capture_output=True, text=True, timeout=30)
         if not r.stdout or len(r.stdout.strip()) < 30:
             return
@@ -959,7 +935,7 @@ def _exec_kb(q, out):
     rewritten = _rewrite_kb_query(q)
     query = (q + "," + rewritten) if rewritten else q
     try:
-        r = subprocess.run(["python3", _script_path("smart_search.py"), query[:80]], capture_output=True, text=True, timeout=25)
+        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "smart_search.py"), query[:80]], capture_output=True, text=True, timeout=25)
         if r.stdout and len(r.stdout) > 100:
             out.append("[知识库搜索结果]\n" + r.stdout.strip()[:4000])
     except Exception:
@@ -1006,7 +982,7 @@ def _detect_semester(q):
 
 def _exec_course(q, out):
     """Course/培养方案 query: inject the matching major plan semester section directly.
-    Searches BOTH the project data/knowledge and openclaw workspace knowledge, preferring the
+    Searches BOTH qq-bot data/knowledge and openclaw workspace knowledge, preferring the
     file with more credit data (workspace files have the full 学分 tables)."""
     import glob as _glob, os as _os
     fkw = None
@@ -1017,7 +993,7 @@ def _exec_course(q, out):
     if not fkw:
         fkw = "YOUR_MAJOR"
     sem = _detect_semester(q)
-    dirs = ["/opt/xiaonai/data/knowledge",
+    dirs = ["/home/ubuntu/qq-bot/data/knowledge",
             _os.path.expanduser("~/.openclaw/workspace/knowledge")]
     best = None  # (path, credit_score, content)
     for d in dirs:
@@ -1064,7 +1040,7 @@ def _exec_reminder(r):
     """Execute a parsed reminder action (set/list/delete/clear). Returns reply string."""
     import subprocess, os as _os, json as _json
     qqbot_dir = _os.path.dirname(__file__)
-    _TD = "/opt/xiaonai/data/timed_msg.json"
+    _TD = "/home/ubuntu/qq-bot/data/timed_msg.json"
     if r["action"] == "set":
         # 去重
         try:
@@ -1082,7 +1058,7 @@ def _exec_reminder(r):
             tgt += ["--group", str(r["group_id"])]
         if r["user_id"]:
             tgt += ["--user", str(r["user_id"])]
-        args = ["python3", _script_path("timed_msg.py"), "add"] + tgt + ["--at", r["send_at"], "--msg", r["content"]]
+        args = ["python3", _os.path.join(qqbot_dir, "timed_msg.py"), "add"] + tgt + ["--at", r["send_at"], "--msg", r["content"]]
         if r["recurring"]:
             args += ["--recurring", r["recurring"]]
             if r["recur_dow"] is not None:
@@ -1147,13 +1123,111 @@ def _exec_reminder(r):
 
 _REMINDER_CLEAR_RE = re.compile(r"清空定时提醒|清空提醒|删除所有提醒|取消所有提醒|清理提醒|全部取消|把提醒全")
 
+
+def _strip_vision_desc(msg):
+    """剥离识图描述块，仅保留用户原始文字。识图描述以「[用户发了一张图片」开头，
+    到「：]」标记结束，其后是 AI 生成的描述。描述内容不含用户真实意图，不应参与提醒解析。
+    纯图片消息（无用户文字）→ 整段剥离 → 返回空，提醒不触发。"""
+    import re as _re
+    if not msg or "用户发了一张图片" not in msg:
+        return msg
+    # 匹配「[用户发了一张图片...：]」标记
+    m = _re.search(r"\[用户发了一张图片.*?：\]", msg, _re.S)
+    if not m:
+        return msg
+    before = msg[:m.start()]            # 标记前的内容（记忆/人格上下文）
+    after = msg[m.end():]              # 标记后的描述内容
+    # 描述内容紧跟在标记后，通常是整段 AI 生成的图片描述（可能多行）。
+    # 用户真实文字若存在，出现在描述之后。由于描述与用户文字无明确分隔符，
+    # 且描述中可能含「提醒/定时/时间」字样，保守策略：
+    #   纯图片（描述后无独立用户文字）→ 返回标记前内容（reminder 不触发）。
+    #   判断「是否纯图片」：after 以描述特征开头（非 CQ 码、非@、非对话前缀）。
+    # 简化可靠方案：描述总是紧随标记；把 after 整体视为描述（AI 生成），
+    # 用户若带文字会以「\n」+ 文字 跟在描述后——但我们无法可靠区分。
+    # 因此这里把整段 after 剥离，返回 before（标记前）。纯图片消息 before 为空 → 返回空。
+    # 若用户在描述后确有提醒意图，会在后续消息中表达，不依赖本次图片附文。
+    return (before.strip() + "\n" if before else "") .strip()
+
+
+# 08-15: 回复相关性兜底——识别「服务端缓存串台」返回的跑题回复。
+# 方案：用 MiMo 自己判断回复是否与识图描述相关（语义级判断，比 n-gram 字面重叠可靠）。
+# 串台特征：输入 GitHub 截图，回复却答「论文/李志芳」——语义完全无关，MiMo 能识别。
+_REL_JUDGE_FAILS = 0
+_REL_JUDGE_DISABLED_UNTIL = 0.0
+
+
+def _reply_relevance_check(desc_text, reply):
+    """用 MiMo 判断回复是否与识图描述相关。
+    返回 True=相关（放行），False=跑题（触发重试），None=无法判断（放行）。
+    失败/超时/熔断 → 返回 None（保守放行，判断器不当新故障点）。"""
+    import httpx, time as _time
+    global _REL_JUDGE_FAILS, _REL_JUDGE_DISABLED_UNTIL
+    if not desc_text or not reply or len(desc_text) < 30 or len(reply) < 10:
+        return None  # 信息不足，无法判断，放行
+    now = _time.time()
+    if now < _REL_JUDGE_DISABLED_UNTIL:
+        return None  # 判断器熔断中，放行
+    try:
+        from config import bot_config
+        system = ("判断回复是否在谈图片内容。只输出：相关 或 不相关。")
+        user = ("[图]\n" + desc_text[:800] + "\n\n[回复]\n" + reply[:600] + "\n\n输出：")
+        # 08-15: 判断器走 mimo-proxy (:8898) + max_tokens 500——直连 opencode 时 MiMo
+        # thinking 压不住导致 content 空/finish=length；proxy 强制 thinking 后 content 正常。
+        # timeout 25s：proxy 首次真实生成约 15s（缓存命中后快）
+        with httpx.Client(timeout=25.0) as client:
+            r = client.post(
+                "http://127.0.0.1:8898/chat/completions",
+                headers={"Authorization": "Bearer " + bot_config.mimo_api_key, "Content-Type": "application/json"},
+                json={
+                    "model": "mimo-v2.5",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "max_tokens": 500,
+                    "temperature": 0,
+                    "thinking": {"type": "disabled"},
+                },
+            )
+            data = r.json()
+        _msg = data["choices"][0]["message"]
+        out = _msg.get("content") or ""
+        # 兜底：content 空时看 reasoning 是否含明确结论（MiMo thinking 可能截断 content）
+        if not out:
+            out = str(_msg.get("reasoning") or "")
+        # 不相关信号：明确的「不相关」或等价表达（reasoning 常被截断到「因此，」但结论可判）
+        _low = out
+        if ("不相关" in _low and "相关" not in _low.replace("不相关", "")) or (
+            ("与图片无关" in _low or "没有涉及图片" in _low or "跑题" in _low or "与图片内容无关" in _low)
+            and "所以是相关" not in _low and "因此相关" not in _low):
+            _REL_JUDGE_FAILS = 0
+            log.info("Rel judge: off-topic (reply vs image desc)")
+            return False
+        if "相关" in _low and "不相关" not in _low:
+            _REL_JUDGE_FAILS = 0
+            return True
+        _REL_JUDGE_FAILS += 1
+        if _REL_JUDGE_FAILS >= 3:
+            _REL_JUDGE_DISABLED_UNTIL = _time.time() + 300
+            _REL_JUDGE_FAILS = 0
+            log.warning("Rel judge: 3 failures, disabled 5min")
+        return None
+    except Exception as e:
+        _REL_JUDGE_FAILS += 1
+        if _REL_JUDGE_FAILS >= 3:
+            _REL_JUDGE_DISABLED_UNTIL = _time.time() + 300
+            _REL_JUDGE_FAILS = 0
+            log.warning("Rel judge: 3 failures, disabled 5min (last: %s)", str(e)[:100])
+        return None  # 判断失败 → 放行
+
+
 def _handle_reminder_clear(msg):
     """Detect 'clear all reminders'. Clear timed_msg.json and return reply or None."""
     import json as _json
     if not _REMINDER_CLEAR_RE.search(msg):
         return None
     try:
-        _td = "/opt/xiaonai/data/timed_msg.json"
+        _td = "/home/ubuntu/qq-bot/data/timed_msg.json"
         _n = 0
         if os.path.exists(_td):
             _n = len(_json.load(open(_td, encoding="utf-8")))
@@ -1198,7 +1272,7 @@ def _handle_reminder(msg, uid, gid):
     # 去重: 已有相同未发送提醒则不重复添加
     try:
         import json as _json
-        _tf = "/opt/xiaonai/data/timed_msg.json"
+        _tf = "/home/ubuntu/qq-bot/data/timed_msg.json"
         if os.path.exists(_tf):
             for _e in _json.load(open(_tf, encoding="utf-8")):
                 if (not _e.get("sent") and _e.get("send_at") == send_at
@@ -1216,7 +1290,7 @@ def _handle_reminder(msg, uid, gid):
         return None
     try:
         r = subprocess.run(
-            ["python3", _script_path("timed_msg.py"), "add"] + tgt
+            ["python3", _os.path.join(_os.path.dirname(__file__), "timed_msg.py"), "add"] + tgt
             + ["--at", send_at, "--msg", content],
             capture_output=True, text=True, timeout=10)
         if r.returncode == 0 or "added" in r.stdout.lower():
@@ -1247,7 +1321,7 @@ def _inject_command_data(msg, user_name="", uid=0, gid=0):
     if wx_urls:
         for wx_url in wx_urls[:3]:
             try:
-                r = subprocess.run(["python3", _script_path("wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
+                r = subprocess.run(["python3", _os.path.join(qqbot_dir, "wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
                 if r.stdout and len(r.stdout) > 200:
                     d = _json.loads(r.stdout)
                     title = d.get("title", ""); content = d.get("content", "")
@@ -1298,7 +1372,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     if wx_urls:
         for wx_url in wx_urls[:3]:
             try:
-                r = subprocess.run(["python3", _script_path("wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
+                r = subprocess.run(["python3", _os.path.join(qqbot_dir, "wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
                 if r.stdout and len(r.stdout) > 200:
                     d = _json.loads(r.stdout)
                     title = d.get("title", "")
@@ -1314,7 +1388,7 @@ def _inject_command_data_legacy(msg, user_name=""):
         yr = 2026; ym = re.findall(r"20[2-9]\d", msg)
         if ym: yr = int(ym[0])
         try:
-            r = subprocess.run(["python3", _script_path("zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
             if r.stdout and "[X]" not in r.stdout[:10]:
                 out.append(r.stdout.strip())
         except: pass
@@ -1332,7 +1406,7 @@ def _inject_command_data_legacy(msg, user_name=""):
         if yr not in years: years = [yr] + years[:2]
         for y in years[:3]:
             try:
-                args = ["python3", _script_path("score_query.py"), pv, str(y), "--smart"]
+                args = ["python3", _os.path.join(qqbot_dir, "score_query.py"), pv, str(y), "--smart"]
                 if score_val: args.append("--score=" + str(score_val))
                 r = subprocess.run(args, capture_output=True, text=True, timeout=25)
                 if r.stdout and len(r.stdout) > 80:
@@ -1343,7 +1417,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     # -- Campus notices --
     if re.search(r"学校通知|校园通知|综合信息|本科生院|教务处通知|研究生院通知|campus|notice|查.*通知|有什么通知|最新.*通知|最近.*通知|看.*通知|新闻|校园网|综合新闻|校内通知", msg):
         try:
-            r = subprocess.run(["python3", _script_path("campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout) > 50:
                 out.append("[学校通知 - i.whut.edu.cn]\n" + r.stdout.strip())
         except: pass
@@ -1351,7 +1425,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     kw = r"课件|题库|资料|资源|习题|复习|试卷|答案|教材|ppt|PPT|pdf|PDF|电子书|笔记|期末|考试题|历年|模拟|考研|保研|毕设|大物|高数|线代|概统|概率|数电|模电|计组|计网|复变|思修|史纲|近代史|马原|毛概|习概|四级|六级|CET|工图|电工|材力|理力|数分|高代"
     if re.search(kw, msg) and len(msg) > 3:
         try:
-            r = subprocess.run(["python3", _script_path("resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout.strip()) > 50:
                 raw_lines = [ln for ln in r.stdout.strip().split("\n") if ln.strip() and not ln.startswith("SITE")]
                 if raw_lines:
@@ -1363,7 +1437,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     is_note = len(msg) > 200
     if not out and is_q and not is_cmd and not is_note and len(msg) > 5:
         try:
-            r = subprocess.run(["python3", _script_path("smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
+            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
             if r.stdout and len(r.stdout) > 100:
                 out.append("[知识库搜索结果]\n" + r.stdout.strip()[:4000])
         except: pass
@@ -1419,7 +1493,7 @@ async def handle_bot_join(ws, data):
         cf = Path(os.path.expanduser("~/.openclaw/agents/main/agent/group_config.json"))
         cf.parent.mkdir(parents=True, exist_ok=True)
         cf.write_text(json.dumps(GROUP_POLICY, ensure_ascii=False, indent=2))
-        bf = Path("/opt/xiaonai/data/group_config.json")
+        bf = Path("/home/ubuntu/qq-bot/data/group_config.json")
         bf.parent.mkdir(parents=True, exist_ok=True)
         bf.write_text(json.dumps(GROUP_POLICY, ensure_ascii=False, indent=2))
         log.info("[JOIN] Group %d added to normal_groups, config saved.", gid)
@@ -1890,7 +1964,7 @@ async def handle_qq_message(ws, data):
     _is_clear = any(kw in msg_for_agent for kw in _clear_keywords)
     _is_admin = role == "admin"
     if _is_clear and _is_admin:
-        _p = _sp.run(["python3", _script_path("session_cleaner_v2.py"),
+        _p = _sp.run(["python3", "/home/ubuntu/qq-bot/session_cleaner_v2.py",
                       "--purge-session", session_key],
                      capture_output=True, timeout=10)
         log.info("PURGE key=%s rc=%s out=%s", session_key, _p.returncode,
@@ -1939,7 +2013,10 @@ async def handle_qq_message(ws, data):
     except: pass
         # 定时提醒: 自然语言解析 + bridge 直处理 (跳过 agent, 防口嗨/空回复)
     from datetime import datetime as _dt
-    _rm = parse_reminder(msg_for_agent, _dt.now(), uid, gid, at_target=_at_qq_from_msg(msg_for_agent))
+    # 08-15: 识图描述块可能含「定时推送」等字样（如 GitHub 项目截图），
+    # 会误触发 parse_reminder。解析提醒意图前先剥离识图描述，只用用户原始文字判断。
+    _reminder_msg = _strip_vision_desc(msg_for_agent)
+    _rm = parse_reminder(_reminder_msg, _dt.now(), uid, gid, at_target=_at_qq_from_msg(_reminder_msg))
     if _rm:
         _remind_reply = _exec_reminder(_rm)
         if _remind_reply:
@@ -1982,12 +2059,40 @@ async def handle_qq_message(ws, data):
         except Exception as _le2:
             log.error("LATE_JOIN regen error: %s", _le2)
     if response:
+        # 08-15: 捕获识图描述（用于回复相关性检测——防服务端缓存串台跑题）
+        _img_desc_for_relevance = ""
+        _rm_m = __import__("re").search(r"\[用户发了一张图片.*?：\]\s*([\s\S]+?)(?=\n\[|$)", msg_for_agent)
+        if _rm_m:
+            _img_desc_for_relevance = _rm_m.group(1).strip()
         response = strip_markdown(response)
         response = strip_resource_urls(response)
         response = strip_sensitive(response)
         response = strip_no_reply(response)
         response = strip_thinking_leak(response)
         response = _convert_at_mentions(response)
+        # 08-15: 回复相关性兜底——识图消息若回复与描述零重叠（疑似串台跑题），重试一次
+        if _img_desc_for_relevance and response and response.strip():
+            if not _reply_relevance_check(_img_desc_for_relevance, response):
+                log.info("Reply off-topic vs image desc (串台疑似), retrying once...")
+                try:
+                    _rt_key = session_key + "-relevance"
+                    _rt_msg = (msg_for_agent +
+                               "\n\n（上次回复与图片内容不符被丢弃。请严格根据识图描述转述图片内容，不要跑题。）")
+                    _rt = await call_openclaw(_rt_key, sname, _rt_msg, role, group_id=gid if gid else 0)
+                    if _rt:
+                        _rt = strip_markdown(_rt)
+                        _rt = strip_resource_urls(_rt)
+                        _rt = strip_sensitive(_rt)
+                        _rt = strip_no_reply(_rt)
+                        _rt = strip_thinking_leak(_rt)
+                        _rt = _convert_at_mentions(_rt)
+                        if _rt and _rt.strip() and _reply_relevance_check(_img_desc_for_relevance, _rt):
+                            response = _rt
+                        elif _rt and _rt.strip():
+                            # 重试仍跑题 → 用重试结果（至少是 agent 新生成）
+                            response = _rt
+                except Exception as _rte:
+                    log.error("Reply relevance retry error: %s", str(_rte)[:120])
         if not response or not response.strip():
             # 08-15: 服务端缓存串台偶发返回英文推理 → 清洗后为空。重试一次（换 session key
             # 避免服务端缓存命中同一 key），再失败才兜底。
