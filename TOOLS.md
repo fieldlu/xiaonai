@@ -79,12 +79,12 @@ python3 /opt/xiaonai/search/resource_search.py 关键词
 注意: get_weather / get_news 是旧架构留下的工具名，现在已经不存在了，别去调，直接用上面的 curl。
 
 ### 8. 群配置 admin_group_control
-查看配置（群类型 + 全部订阅状态；订阅相关问题一律先跑这条）:
+查看配置（按小奈回复策略的群分类 + 全部订阅状态；订阅相关问题一律先跑这条）:
 python3 /opt/xiaonai/admin/admin_group_control.py show_config
-群类型增删（5 类：class_group 需被@ / chat_group 不需@ / normal_group / mute_group 禁言 / blacklist 黑名单）:
+群回复策略配置（class_group/normal_group = 需被@才回复；chat_group = 无需@主动聊天；blacklist = 按QQ拉黑；mute_group 不生效勿用）:
 python3 /opt/xiaonai/admin/admin_group_control.py add_class_group 群号
 python3 /opt/xiaonai/admin/admin_group_control.py remove_class_group 群号
-（add_ / remove_ 后面换成 chat_group、normal_group、mute_group、blacklist 用法相同）
+（add_ / remove_ 后面换成 chat_group、normal_group、blacklist 用法相同）
 订阅增删（必须写明确的群号，不能写"当前群"）:
 python3 /opt/xiaonai/admin/admin_group_control.py subscribe 群号 weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all
 python3 /opt/xiaonai/admin/admin_group_control.py unsubscribe 群号 同上

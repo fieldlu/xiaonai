@@ -103,7 +103,7 @@ MIMO_BASE_URL=https://opencode.ai/zen/go/v1   # 可换任意 OpenAI 兼容端点
 - 换模型需改代码：`src/llm/client.py` 中 `model="mimo-v2.5"`。
 - 知识库上下文：把 `.md` 放入 `data/knowledge/` 后跑 `python3 search/rebuild_kb_index.py`。
 
-**使用**：私聊/群里直接发消息。群内是否回复取决于群类型（见第五章）。
+**使用**：私聊/群里直接发消息。群内是否回复取决于小奈的回复策略（见第五章）。
 
 **数据存储**：读 `data/knowledge/index.json` + `*.md`。
 
@@ -742,17 +742,19 @@ API 凭据：`.env` 的 `QW_API_KEY` / `QW_API_HOST`。
 ### 29. 群类型管理 👥
 
 **功能详解**（`admin_group_control.py`）
-5 类群，互斥（add 自动从其他列表移除），配置双写（OpenClaw workspace + `data/group_config.json`）并热加载 bridge（POST :8081/reload）：
+群分类按**小奈的回复策略**（不是按群的"身份"分，而是按小奈在群里的行为分）。配置双写（OpenClaw workspace + `data/group_config.json`）并热加载 bridge（POST :8081/reload），add 自动互斥去重：
 
-| 类型 | 行为 | 命令 |
-|------|------|------|
-| `class_groups` 班级群 | 仅 @ 小奈才回复（静默群） | `add_class_group 群号` |
-| `chat_groups` 闲聊群 | 主动回复 | `add_chat_group 群号` |
-| `normal_groups` 普通群 | 正常回复（仅 @ 回复、无推送） | `add_normal_group 群号` |
-| `mute_groups` 免打扰群 | 全沉默（仅管理员可通知） | `add_mute_group 群号` |
-| `blacklist` 黑名单 | 不回复 | `add_blacklist 群号` |
+| 配置键 | 小奈的回复策略（真实行为） | 命令 |
+|--------|---------------------------|------|
+| `class_groups` | **需 @ 才回复**：被 @ / 被叫"小奈" / 发图片才说话（正式群/班级群） | `add_class_group 群号` |
+| `normal_groups` | **需 @ 才回复**：与 class_groups 行为完全一致 | `add_normal_group 群号` |
+| `chat_groups` | **主动回复**：无需 @，群里正常聊天（日常交流群） | `add_chat_group 群号` |
+| `blacklist` | **拉黑用户**（按 QQ 号，不是群）：被拉黑者私聊/群聊一律不回 | `add_blacklist QQ号` |
+| `mute_groups` | ⚠️ **不生效**：bridge.py 不读取此键，放入的群等同未配置 | `add_mute_group 群号` |
 
-> 未配置的群默认按静默群处理；订阅通知不受群类型影响；机器人被拉入新群自动加 normal_groups。
+> ⚠️ **未配置的群**：小奈完全忽略（不回复，连 @ 也不回）。
+> ⚠️ **`mute_groups` 是无效配置**——bridge 的 `load_group_policy()` 只读 class/chat/normal/blacklist 四个键，请勿使用。
+> ✅ 订阅通知不受群类型影响；机器人被拉入新群自动加入 normal_groups。
 
 **使用**
 ```bash

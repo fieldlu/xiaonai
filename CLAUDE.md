@@ -64,7 +64,7 @@ xiaonai/
 │   ├── searxng_proxy.py / scholar_search.py / resource_search.py
 ├── admin/                    # 🛠 运维管理模块
 │   ├── admin_cli.py          #   运维 CLI（import ../search/smart_search）
-│   ├── admin_group_control.py #  群类型/订阅管理
+│   ├── admin_group_control.py #  群回复策略/订阅管理
 │   ├── self_test.py / bridge_health.py / proactive_check.py / health_notify.py
 │   ├── session_cleaner.py / session_cleaner_v2.py
 │   ├── exam_countdown.py / timed_msg.py / alarm_manager.py / notify_classmate.py

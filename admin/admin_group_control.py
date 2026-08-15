@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """CLI wrapper for admin_group_control — usable by OpenClaw agent via exec.
 
+群分类按【小奈的回复策略】：
+  - class_groups / normal_groups: 需被 @（或被叫"小奈"/发图）才回复 —— 正式群/班级群
+  - chat_groups: 无需 @，主动参与聊天 —— 日常交流群
+  - blacklist: 按用户 QQ 拉黑（不是群），被拉黑者消息一律不回
+  - mute_groups: bridge 不读取，不生效（勿使用）
+  - 未配置的群: 完全忽略
+
 Usage:
   python3 admin/admin_group_control.py add_class_group CADRE_GROUP_PLACEHOLDER
   python3 admin/admin_group_control.py add_chat_group TEST_GROUP_PLACEHOLDER
   python3 admin/admin_group_control.py add_normal_group 123456789
-  python3 admin/admin_group_control.py add_mute_group 123456789
   python3 admin/admin_group_control.py add_blacklist 123456789
   python3 admin/admin_group_control.py remove_class_group CADRE_GROUP_PLACEHOLDER
   python3 admin/admin_group_control.py remove_chat_group TEST_GROUP_PLACEHOLDER
   python3 admin/admin_group_control.py remove_normal_group 123456789
-  python3 admin/admin_group_control.py remove_mute_group 123456789
   python3 admin/admin_group_control.py remove_blacklist 123456789
   python3 admin/admin_group_control.py show_config
   python3 admin/admin_group_control.py subscribe 群号 [weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all]
@@ -147,15 +152,14 @@ def main():
             print(f"错误：群号必须是数字，收到: {value}")
             sys.exit(1)
     if action == "show_config":
-        print("当前群配置（未配置的群默认为静默群）：")
-        print(f"  [聊天群] 主动回复: {cfg.get('chat_groups', [])}")
-        print(f"  [普通群] 正常回复: {cfg.get('normal_groups', [])}")
-        print(f"  [静默群] 仅@才回: {cfg.get('class_groups', [])}")
-        print(f"  [免打扰] 全沉默: {cfg.get('mute_groups', [])}")
-        print(f"  [黑名单] 不回复: {cfg.get('blacklist', [])}")
+        print("当前群配置（按小奈的回复策略分类）：")
+        print(f"  [@才回复] class_groups: {cfg.get('class_groups', [])}    # 需被 @ / 被叫'小奈' / 发图才回复")
+        print(f"  [@才回复] normal_groups: {cfg.get('normal_groups', [])}   # 同 class_groups，行为一致")
+        print(f"  [主动回复] chat_groups: {cfg.get('chat_groups', [])}     # 无需 @，群里正常聊天")
+        print(f"  [拉黑用户] blacklist: {cfg.get('blacklist', [])}          # 按用户 QQ 拉黑，消息一律不回")
         print()
-        all_cfg = set(cfg.get('chat_groups', []) + cfg.get('normal_groups', []) + cfg.get('class_groups', []) + cfg.get('mute_groups', []))
-        print(f"  ⚠️ 未在上列列表的群默认为「静默群」（仅@小奈才回复）")
+        print("  ⚠️ mute_groups 不生效：bridge.py 不读取该键，放入的群等同未配置（被完全忽略）")
+        print("  ⚠️ 未配置的群：小奈完全忽略（不回复，连 @ 也不回）")
         print("  ✔️ 订阅通知功能不受群类型影响，定时推送正常工作")
         _print_subscriptions()
     elif action == "add_class_group":
@@ -191,7 +195,7 @@ def main():
             cfg["chat_groups"] = cg
             save_config(cfg)
             reload_bridge()
-            print(f"已将群 {gid} 设为闲聊群（正常聊天）。")
+            print(f"已将群 {gid} 设为闲聊群（无需 @，小奈主动参与聊天）。")
         else:
             print(f"群 {gid} 已是闲聊群。")
             print(f"  当前闲聊群: {cfg.get('chat_groups', [])}")
@@ -216,7 +220,7 @@ def main():
             cfg["normal_groups"] = ng
             save_config(cfg)
             reload_bridge()
-            print(f"已将群 {gid} 设为普通群（仅@回复，无推送）。")
+            print(f"已将群 {gid} 设为普通群（需 @ 才回复，与班级群行为一致）。")
         else:
             print(f"群 {gid} 已是普通群。")
             print(f"  当前普通群: {cfg.get('normal_groups', [])}")
@@ -241,10 +245,10 @@ def main():
             cfg["mute_groups"] = mg
             save_config(cfg)
             reload_bridge()
-            print(f"已将群 {gid} 设为免打扰群（小奈不会回复，仅管理员可通知）。")
+            print(f"已将群 {gid} 加入 mute_groups（⚠️ 不生效：bridge 不读取此键，此群实际等同未配置、被完全忽略）。")
         else:
-            print(f"群 {gid} 已是免打扰群。")
-            print(f"  当前免打扰群: {cfg.get('mute_groups', [])}")
+            print(f"群 {gid} 已在 mute_groups（⚠️ 不生效，等同未配置）。")
+            print(f"  mute_groups（不生效）: {cfg.get('mute_groups', [])}")
 
     elif action == "remove_mute_group":
         mg = cfg.get("mute_groups", [])
@@ -253,10 +257,10 @@ def main():
             cfg["mute_groups"] = mg
             save_config(cfg)
             reload_bridge()
-            print(f"已将群 {gid} 从免打扰群移除，此群将恢复正常回复。")
+            print(f"已将群 {gid} 从 mute_groups 移除（⚠️ 该键本就不生效）。")
         else:
-            print(f"群 {gid} 不在免打扰群中。")
-            print(f"  当前免打扰群: {cfg.get('mute_groups', [])}")
+            print(f"群 {gid} 不在 mute_groups 中。")
+            print(f"  mute_groups（不生效）: {cfg.get('mute_groups', [])}")
 
     elif action == "add_blacklist":
         bl = cfg.get("blacklist", [])
@@ -266,7 +270,7 @@ def main():
             cfg["blacklist"] = bl
             save_config(cfg)
             reload_bridge()
-            print(f"已将群 {gid} 加入黑名单（小奈不会再回复）。")
+            print(f"已将 QQ {gid} 加入黑名单（按用户拉黑，该用户消息一律不回）。")
         else:
             print(f"群 {gid} 已在黑名单中。")
             print(f"  当前黑名单: {cfg.get('blacklist', [])}")
@@ -278,7 +282,7 @@ def main():
             cfg["blacklist"] = bl
             save_config(cfg)
             reload_bridge()
-            print(f"已将群 {gid} 从黑名单移除。")
+            print(f"已将 QQ {gid} 从黑名单移除。")
         else:
             print(f"群 {gid} 不在黑名单中。")
             print(f"  当前黑名单: {cfg.get('blacklist', [])}")
@@ -302,7 +306,7 @@ def main():
         print(f"  当前静默群: {cfg.get('class_groups', [])}")
         print(f"  当前聊天群: {cfg.get('chat_groups', [])}")
         print(f"  当前普通群: {cfg.get('normal_groups', [])}")
-        print(f"  当前免打扰群: {cfg.get('mute_groups', [])}")
+        print(f"  mute_groups（不生效）: {cfg.get('mute_groups', [])}")
 
     elif action == "set_all_chat":
         all_gids = set()
@@ -347,7 +351,7 @@ def main():
             cfg["mute_groups"] = mg
         save_config(cfg)
         reload_bridge()
-        print(f"已将全部 {len(all_gids)} 个已配置群改为免打扰群。")
+        print(f"已将全部 {len(all_gids)} 个已配置群改为 mute_groups（⚠️ 不生效）。")
 
     elif action == "subscribe":
         sc_path = "/opt/xiaonai/data/scheduler_config.json"
