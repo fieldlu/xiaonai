@@ -1,0 +1,46 @@
+# Secrets — never commit
+.env
+.env.*
+*.key
+*.pem
+exec-approvals.json
+.webvpn_ticket
+.resource_token
+
+# Runtime data
+data/*.db
+data/*.sqlite*
+data/memory/
+data/diary/
+data/knowledge/
+data/uploads/
+data/timed_msg.json
+data/scheduler_state.json
+data/*_cache.json
+data/*_state.json
+exports/
+
+# Logs
+*.log
+logs/
+bot.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pkl
+*.npz
+venv/
+.venv/
+
+# OpenClaw runtime
+~/.openclaw/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/

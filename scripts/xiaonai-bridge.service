@@ -1,0 +1,16 @@
+[Unit]
+Description=XiaoNai QQ Bridge (NapCat -> OpenClaw + OCR)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/xiaonai
+ExecStart=/opt/xiaonai/venv/bin/python3 /opt/xiaonai/bridge.py
+Restart=always
+RestartSec=3
+# 防止 OOM 时重启循环
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

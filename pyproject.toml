@@ -1,0 +1,76 @@
+# ============================================================
+# XiaoNai — tooling configuration
+# ------------------------------------------------------------
+# This project is deployed as plain scripts (see requirements.txt
+# for runtime dependencies); this file only configures the dev
+# toolchain (ruff / pytest / mypy) and exposes package metadata.
+# ============================================================
+
+[project]
+name = "xiaonai"
+version = "1.0.0"
+description = "XiaoNai (小奈) — a production-grade QQ group assistant bot built on NapCat + OpenClaw + MiMo"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = [
+    "qq-bot", "onebot", "napcat", "openclaw", "mimo",
+    "group-assistant", "llm", "knowledge-base", "chatbot",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Chinese (Simplified)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Chat",
+]
+
+[tool.setuptools]
+# Metadata-only package: runtime deps come from requirements.txt
+packages = []
+
+# ------------------------------------------------------------
+# Ruff — fast Python linter & formatter
+# ------------------------------------------------------------
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+src = ["src", "."]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line length enforced by the formatter, not the linter
+    "B008",  # function call in default argument (pydantic/NoneBot pattern)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # re-exported names
+
+# ------------------------------------------------------------
+# Pytest
+# ------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+# ------------------------------------------------------------
+# Mypy (progressive; run on src/ only)
+# ------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = false

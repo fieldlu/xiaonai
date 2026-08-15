@@ -1,0 +1,126 @@
+{
+  "__meta__": {
+    "description": "XiaoNai Smart Search Config",
+    "version": "1.1",
+    "last_updated": "2026-06-06"
+  },
+  "credibility": {
+    "kb_keyword": 0.95,
+    "kb_semantic": 0.85,
+    "score_api": 0.9,
+    "enrollment": 0.85,
+    "campus": 0.8,
+    "web_search": 0.7,
+    "scholar": 0.7,
+    "lyrics": 0.55,
+    "nhtsa": 0.7
+  },
+  "routing": {
+    "score_api": {
+      "keywords": [
+        "录取",
+        "分数",
+        "位次",
+        "多少分",
+        "分数线",
+        "投档",
+        "高考",
+        "招生",
+        "学院",
+        "机械",
+        "自动化",
+        "计算机",
+        "车辆"
+      ],
+      "description": "Score queries"
+    },
+    "enrollment": {
+      "keywords": [
+        "招生",
+        "计划",
+        "名额",
+        "选科",
+        "专业介绍"
+      ],
+      "description": "Enrollment queries"
+    },
+    "campus": {
+      "keywords": [
+        "通知",
+        "公告",
+        "校园",
+        "学校",
+        "whut",
+        "教务处",
+        "校"
+      ],
+      "description": "Campus notices"
+    },
+    "lyrics": {
+      "keywords": [
+        "歌词",
+        "唱",
+        "歌",
+        "music",
+        "song",
+        "lyric"
+      ],
+      "description": "Lyrics search"
+    },
+    "nhtsa": {
+      "keywords": [
+        "车",
+        "汽车",
+        "vin",
+        "车辆",
+        "车型",
+        "car",
+        "vehicle"
+      ],
+      "description": "Vehicle VIN"
+    },
+    "scholar": {
+      "keywords": [
+        "论文",
+        "文献",
+        "研究",
+        "学术",
+        "文章",
+        "paper",
+        "research",
+        "scholar",
+        "journal",
+        "science",
+        "综述"
+      ],
+      "description": "Academic paper search"
+    },
+    "web_search": {
+      "keywords": [
+        "什么",
+        "怎么",
+        "如何",
+        "为什么",
+        "哪个",
+        "吗",
+        "最新",
+        "新闻",
+        "消息",
+        "情况"
+      ],
+      "description": "Web search"
+    }
+  },
+  "cache": {
+    "default_ttl": 300,
+    "web_search_ttl": 300,
+    "score_api_ttl": 120,
+    "kb_ttl": 600
+  },
+  "default_sources": [
+    "kb_keyword",
+    "kb_semantic",
+    "web_search"
+  ],
+  "max_results": 6
+}
