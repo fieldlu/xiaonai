@@ -12,7 +12,7 @@ import sqlite3, sys, os, argparse
 from datetime import datetime, date
 from pathlib import Path
 
-DB_DIR = Path(__file__).parent / "data"
+DB_DIR = Path(__file__).resolve().parents[1] / "data"
 DB_PATH = DB_DIR / "exams.db"
 
 STYLE_MAP = {

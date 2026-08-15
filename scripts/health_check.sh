@@ -217,7 +217,7 @@ WARP_RSS="${WARP_RSS:-0}"
 if [ "$WARP_RSS" -gt 512000 ]; then
   log "  warp-svc RSS ${WARP_RSS}KB > 500MB — restarting (leak guard)"
   if mark_restart warp-mem; then
-    if timeout 90 /opt/xiaonai/warp_restart.sh >/dev/null 2>&1; then
+    if timeout 90 /opt/xiaonai/scripts/warp_restart.sh >/dev/null 2>&1; then
       log "  warp-svc restarted, proxy OK"
       ACTIONS="$ACTIONS warp-mem"
     else

@@ -246,7 +246,7 @@ sudo systemctl enable --now xiaonai-bridge xiaonai-scheduler
 
 ```bash
 # crontab
-*/15 * * * * /opt/xiaonai/health_check.sh >> /var/log/health_check.log 2>&1
+*/15 * * * * /opt/xiaonai/scripts/health_check.sh >> /var/log/health_check.log 2>&1
 ```
 
 完整部署指南见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。

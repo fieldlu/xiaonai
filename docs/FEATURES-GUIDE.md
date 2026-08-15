@@ -850,7 +850,7 @@ python3 admin/admin_cli.py sessions
 
 **配置**（cron）
 ```bash
-*/15 * * * * /opt/xiaonai/health_check.sh >> /var/log/health_check.log 2>&1
+*/15 * * * * /opt/xiaonai/scripts/health_check.sh >> /var/log/health_check.log 2>&1
 ```
 需 ubuntu 用户 NOPASSWD sudo（systemd 服务重启）；flock 防并发。
 

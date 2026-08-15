@@ -16,7 +16,9 @@ def save(alarms):
     ALARMS_FILE.parent.mkdir(parents=True, exist_ok=True)
     ALARMS_FILE.write_text(json.dumps(alarms, ensure_ascii=False, indent=2))
 
-def cmd_set(time_str, message, user_id=ADMIN_QQ_PLACEHOLDER, is_group=False, group_id=0):
+def cmd_set(time_str, message, user_id=None, is_group=False, group_id=0):
+    if user_id is None:
+        user_id = 0  # CLI 默认归属：由调用方指定，缺省匿名
     alarms = load()
     # Parse time: "08:00" or "2026-06-01 08:00"
     if " " in time_str:

@@ -120,7 +120,7 @@ def _kb_sem(q,k=6):
             ct=sn if sn else ''
             if not ct:
                 try:
-                    with open(os.path.join(_BASE,"data","knowledge",fp+".md"),'r',encoding='utf-8') as f: ct=f.read()
+                    with open(os.path.join(_BASE, "..", "data", "knowledge", fp + ".md"), 'r', encoding='utf-8') as f: ct = f.read()
                 except: ct=''
             lines.append({'source':'kb_semantic','topic':t,'snippet':ct,'score':round(sc,3),'credibility':round(cr,2)})
         _set_cache(ck,lines);return lines

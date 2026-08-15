@@ -40,4 +40,5 @@ if __name__ == "__main__":
     if role:
         print("ROLE: " + role)
     if msg:
-        print("CMD: python3 /opt/xiaonai/send_qq_msg.py --user " + qq + ' --message "' + msg + '"')
+        print("NOTIFY: user " + qq + ' (' + full_name + ') 消息: "' + msg + '"')
+        print("HINT: 实际发送走对话工具 admin_send_message / admin_cli.py send " + qq + ' "' + msg + '"')

@@ -11,7 +11,7 @@ from collections import Counter
 
 import numpy as np
 
-KB = os.path.join(os.path.dirname(__file__), "data", "knowledge")
+KB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "knowledge")
 INDEX_FILE = os.path.join(KB, "semantic_index.pkl")
 CACHE_FILE = os.path.join(KB, "semantic_cache.npz")
 

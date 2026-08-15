@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 MOOD_FILE = DATA_DIR / "mood_state.json"
 
 MOODS = ["元气满满", "普通日常", "有点困", "想撒娇", "心情低落", "想同学了"]
@@ -151,7 +151,7 @@ def record_interaction(user_id: int) -> None:
     if data.get("date") != today:
         data = {"date": today, "count": 0, "admin_talked": False, "users": []}
     data["count"] = data.get("count", 0) + 1
-    if user_id == ADMIN_QQ_PLACEHOLDER:
+    if str(user_id) == "ADMIN_QQ_PLACEHOLDER":  # 部署时全局替换为班长 QQ
         data["admin_talked"] = True
     if user_id not in data.get("users", []):
         data.setdefault("users", []).append(user_id)
