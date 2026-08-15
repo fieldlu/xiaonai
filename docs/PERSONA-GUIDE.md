@@ -51,8 +51,8 @@
 |--------|------|
 | `BOT_QQ_PLACEHOLDER` | 机器人自己的 QQ |
 | `ADMIN_QQ_PLACEHOLDER` | 管理员 QQ |
-| `CLASS_GROUP_PLACEHOLDER` | 班级群 |
-| `CHAT_GROUP_PLACEHOLDER` | 闲聊群 |
+| `CLASS_GROUP_PLACEHOLDER` | 需 @ 才回复的群（class_groups，如班级群） |
+| `CHAT_GROUP_PLACEHOLDER` | 无需 @ 主动聊天的群（chat_groups，如日常交流群） |
 | `TEST_GROUP_PLACEHOLDER` | 测试群 |
 | `YOUR_SCHOOL` / `YOUR_MAJOR` | 学校/专业 |
 

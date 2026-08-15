@@ -454,8 +454,8 @@ Do not skip retrieval just because the task feels familiar.
 1. 消息前缀已经带了 [当前群: XXXX]，直接用这个 group_id
 2. **只查当前群的成员**，绝对不要调 get_group_list 查所有群
 3. 查成员用 get_group_member_list，查签名用 get_stranger_info
-   - CLASS_GROUP_PLACEHOLDER = YOUR_CLASS（42人）
-   - CHAT_GROUP_PLACEHOLDER = YOUR_CLASS日常交流群（39人）
-   - CADRE_GROUP_PLACEHOLDER = YOUR_CLASS干部群（16人）
-   - TEST_GROUP_PLACEHOLDER = （测试群）（5人）
+   - CLASS_GROUP_PLACEHOLDER = YOUR_CLASS（42人）        # 需@才回复
+   - CHAT_GROUP_PLACEHOLDER = YOUR_CLASS日常交流群（39人）  # 无需@，主动聊天
+   - CADRE_GROUP_PLACEHOLDER = YOUR_CLASS干部群（16人）    # 需@才回复
+   - TEST_GROUP_PLACEHOLDER = （测试群）（5人）     # 测试用
    - YOUR_GROUP_PLACEHOLDER = 课程讨论小组（7人）

@@ -209,10 +209,10 @@ python3 search/smart_search.py "问题"   # 知识库检索测试
 |--------|--------|
 | `BOT_QQ_PLACEHOLDER` | 机器人自己的 QQ 号 |
 | `ADMIN_QQ_PLACEHOLDER` | 管理员 QQ 号 |
-| `CLASS_GROUP_PLACEHOLDER` | 班级群号 |
-| `CHAT_GROUP_PLACEHOLDER` | 闲聊群号 |
-| `TEST_GROUP_PLACEHOLDER` | 测试群号 |
-| `CADRE_GROUP_PLACEHOLDER` | 干部群号 |
+| `CLASS_GROUP_PLACEHOLDER` | 需 @ 才回复的群号（class_groups，如班级正式群） |
+| `CHAT_GROUP_PLACEHOLDER` | 无需 @ 主动聊天的群号（chat_groups，如日常交流群） |
+| `TEST_GROUP_PLACEHOLDER` | 测试群号（test_group） |
+| `CADRE_GROUP_PLACEHOLDER` | 干部群号（通常归 class_groups，需 @） |
 | `RESOURCE_GROUP_PLACEHOLDER` | 资料共享群号 |
 | `WHUT_ACCOUNT_PLACEHOLDER` | (可选) 校内系统账号 |
 | `WHUT_PASSWORD_PLACEHOLDER` | (可选) 校内系统密码 |
