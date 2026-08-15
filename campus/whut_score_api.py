@@ -2,15 +2,15 @@
 """WHUT official score API query tool.
 Queries zs.whut.edu.cn directly for admission score data.
 Usage:
-  python3 whut_score_api.py list                        # List provinces
-  python3 whut_score_api.py <province> [year] [category] [major] [--score N]
-  python3 whut_score_api.py 湖北                          # All data for 湖北
-  python3 whut_score_api.py 湖北 2024                     # 湖北 2024
-  python3 whut_score_api.py 湖北 2024 物理类                # 湖北 2024 物理类
-  python3 whut_score_api.py 湖北 2024 物理类 计算机          # Filter by major keyword
-  python3 whut_score_api.py 湖北 --score 620              # 湖北 620分能报的专业
-  python3 whut_score_api.py verify all                   # Cross-check all files
-  python3 whut_score_api.py verify 湖北 湖南               # Check specific provinces
+  python3 campus/whut_score_api.py list                        # List provinces
+  python3 campus/whut_score_api.py <province> [year] [category] [major] [--score N]
+  python3 campus/whut_score_api.py 湖北                          # All data for 湖北
+  python3 campus/whut_score_api.py 湖北 2024                     # 湖北 2024
+  python3 campus/whut_score_api.py 湖北 2024 物理类                # 湖北 2024 物理类
+  python3 campus/whut_score_api.py 湖北 2024 物理类 计算机          # Filter by major keyword
+  python3 campus/whut_score_api.py 湖北 --score 620              # 湖北 620分能报的专业
+  python3 campus/whut_score_api.py verify all                   # Cross-check all files
+  python3 campus/whut_score_api.py verify 湖北 湖南               # Check specific provinces
 """
 import json, sys, os
 from urllib.request import Request, urlopen

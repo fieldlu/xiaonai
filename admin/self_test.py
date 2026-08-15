@@ -9,7 +9,7 @@ delivery of that report doubles as the outbound-send capability check.
 L1 NapCat : OneBot API get_login_info answers with status ok
 L3 agent  : openclaw CLI responds to a ping (only with --full)
 
-Usage: python3 self_test.py [--full]
+Usage: python3 admin/self_test.py [--full]
 Output: JSON (stdout) + persisted data/self_test_state.json
 Exit:   0 = all probes ok, 1 = any probe failed
 """

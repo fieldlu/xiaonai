@@ -78,14 +78,18 @@ NapCat (QQ 客户端, OneBot v11, WS :3001)
 
 | 模块 | 职责 |
 |------|------|
-| `bridge.py` | 消息桥接、批处理、安全过滤、LLM 调用、回复发送 |
-| `scheduler_v5.py` | 定时推送：天气 / 地震 / 校园通知 / 考试倒计时 / 定时消息 |
-| `src/llm/` | LLM 客户端、工具定义与实现（9 种工具） |
-| `src/memory/` | 三层记忆 + 好感度引擎（六维情感） |
+| `bridge.py` | ★ 消息桥接主进程：批处理、安全过滤、LLM 调用、回复发送 |
+| `scheduler_v5.py` | ★ 定时推送守护进程：天气 / 地震 / 校园通知 / 考试倒计时 / 定时消息 |
+| `campus/` | 🏫 校园模块：CAS 登录、WebVPN 抓取、通知搜索与推送、招生 API |
+| `search/` | 🔍 查询检索：知识库（BM25+语义）、分数、招生计划、论文、资源、网页搜索 |
+| `admin/` | 🛠 运维管理：群配置、订阅、考试、定时消息、闹钟、健康检查、会话清理 |
+| `tools/` | 🧰 通用工具：文档导出、文档转换、咨询网页、语音等 |
+| `scripts/` | 🔧 shell 脚本（健康自愈 / 密钥扫描 / 启动）+ systemd 单元 |
+| `src/llm/` | LLM 客户端、38 个工具定义与实现 |
+| `src/memory/` | 三层记忆 + 8 维好感度引擎 |
 | `src/plugins/` | NoneBot 插件：识图、抽签、新闻、人格、地震等 |
-| `src/whut/` | 校园系统接入（CAS 登录、WebVPN、招生 API） |
-| `src/search/` | 知识库检索（BM25 + 语义）与网页搜索 |
-| `health_check.sh` | cron 健康巡检 + 自愈（systemd 服务恢复） |
+| `src/whut/` | WebVPN 客户端（CAS 自动登录） |
+| `src/search/` | 多引擎网页搜索核心（百度/搜狗/必应/DDG） |
 
 ---
 
@@ -93,24 +97,50 @@ NapCat (QQ 客户端, OneBot v11, WS :3001)
 
 ```
 xiaonai/
-├── bridge.py                 # 消息桥接主进程
-├── scheduler_v5.py           # 定时推送进程
+├── bridge.py                 # ★ 消息桥接主进程（入口）
+├── scheduler_v5.py           # ★ 定时推送守护进程（入口）
 ├── bot.py                    # NoneBot 入口（可选）
-├── admin_cli.py              # 运维 CLI（服务/定时任务管理）
-├── admin_group_control.py    # 群配置管理（群类型/订阅）
 ├── config.py                 # pydantic 配置（读取 .env）
-├── src/
-│   ├── core/                 # 推理 / 反思 / 性能分析
-│   ├── llm/                  # LLM 客户端 + 工具系统
-│   ├── memory/               # 记忆 + 好感度引擎
-│   ├── plugins/              # NoneBot 插件
-│   ├── search/               # 多路检索
-│   └── whut/                 # 校园系统接入
-├── docs/                     # 架构 / 部署 / 人格 / 知识库文档
-├── scripts/                  # systemd 单元文件
+├── campus/                   # 🏫 校园模块（CAS/WebVPN/招生/通知）
+│   ├── campus_search.py      #   校园通知搜索
+│   ├── campus_daily.py       #   校园通知每日推送
+│   ├── webvpn_login.py       #   WebVPN 登录
+│   └── ...
+├── search/                   # 🔍 查询检索模块
+│   ├── kb_manage.py          #   知识库管理（BM25+模糊）
+│   ├── kb_semantic.py        #   语义搜索
+│   ├── score_query.py        #   录取分数查询
+│   ├── smart_search.py       #   7 源聚合搜索
+│   ├── scholar_search.py     #   学术论文搜索
+│   └── ...
+├── admin/                    # 🛠 运维管理模块
+│   ├── admin_cli.py          #   运维 CLI
+│   ├── admin_group_control.py #  群配置管理
+│   ├── health_check.sh 由 scripts/ 管理
+│   ├── exam_countdown.py     #   考试倒计时
+│   ├── timed_msg.py          #   定时消息
+│   └── ...
+├── tools/                    # 🧰 通用工具模块
+│   ├── docx_export_helper.py #   文献 .docx 导出
+│   ├── xiaonai_doc_tools_v2.py # 通用文档工具
+│   ├── consultation_server.py #  招生咨询网页
+│   └── ...
+├── scripts/                  # 🔧 shell 脚本 + systemd 单元
+│   ├── health_check.sh       #   健康自愈（cron）
+│   ├── scan_secrets.sh       #   密钥泄露扫描
+│   └── *.service             #   systemd 单元
+├── src/                      # 📚 Python 包
+│   ├── core/                 #   推理 / 反思 / 性能分析
+│   ├── llm/                  #   LLM 客户端 + 38 工具系统
+│   ├── memory/               #   记忆 + 8 维好感度引擎
+│   ├── plugins/              #   NoneBot 插件
+│   ├── search/               #   多引擎搜索核心
+│   └── whut/                 #   WebVPN 客户端
+├── docs/                     # 📖 文档（保姆教程/功能手册/架构/部署）
 ├── data/                     # 运行时数据（gitignored）
 ├── .env.example              # 环境变量模板
-└── requirements.txt          # Python 依赖
+├── requirements.txt          # Python 依赖
+└── CLAUDE.md                 # 给 AI 代码 Agent 的项目指南
 ```
 
 ---
@@ -164,8 +194,8 @@ python3 scheduler_v5.py    # 定时推送（可选，独立进程）
 ### 5. 自检
 
 ```bash
-python3 self_test.py --full      # 全链路自检（NapCat + Agent）
-python3 smart_search.py "问题"   # 知识库检索测试
+python3 admin/self_test.py --full      # 全链路自检（NapCat + Agent）
+python3 search/smart_search.py "问题"   # 知识库检索测试
 ```
 
 ---
@@ -238,10 +268,10 @@ sudo systemctl enable --now xiaonai-bridge xiaonai-scheduler
 ## 🧪 测试
 
 ```bash
-python3 self_test.py --full       # 全链路自检（L1 NapCat + L3 Agent）
-python3 smart_search.py "问题"     # 知识库检索测试
-python3 exam_countdown.py list     # 考试倒计时测试
-python3 campus_search.py "通知"    # 校园通知搜索测试
+python3 admin/self_test.py --full       # 全链路自检（L1 NapCat + L3 Agent）
+python3 search/smart_search.py "问题"     # 知识库检索测试
+python3 admin/exam_countdown.py list     # 考试倒计时测试
+python3 campus/campus_search.py "通知"    # 校园通知搜索测试
 ```
 
 CI（GitHub Actions）自动执行：Ruff 代码检查 + 全量语法编译 + 密钥泄露扫描。

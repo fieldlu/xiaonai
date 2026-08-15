@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bridge health check for the 小奈 QQ bot — hardened version.
-Usage: python3 bridge_health.py [--fix]
+Usage: python3 admin/bridge_health.py [--fix]
 Output: JSON health status + optional auto-repair.
 
 Hardening vs old version:

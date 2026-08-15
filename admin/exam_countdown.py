@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Exam countdown system. CLI usage:
 
-  python3 exam_countdown.py add "Exam Name" 2026-06-15 [--type cet4] [--remind 7]
-  python3 exam_countdown.py delete "Exam Name"
-  python3 exam_countdown.py list
-  python3 exam_countdown.py days "Exam Name"
-  python3 exam_countdown.py push
-  python3 exam_countdown.py archive
+  python3 admin/exam_countdown.py add "Exam Name" 2026-06-15 [--type cet4] [--remind 7]
+  python3 admin/exam_countdown.py delete "Exam Name"
+  python3 admin/exam_countdown.py list
+  python3 admin/exam_countdown.py days "Exam Name"
+  python3 admin/exam_countdown.py push
+  python3 admin/exam_countdown.py archive
 """
 import sqlite3, sys, os, argparse
 from datetime import datetime, date

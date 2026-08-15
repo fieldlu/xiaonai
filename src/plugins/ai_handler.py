@@ -446,6 +446,8 @@ async def handle_ai(event: Event, msg: Message = EventMessage()):
         _kw = ["课怎么样", "推荐", "给分", "评价", "思政", "通识", "选课", "老师", "高分"]
         if any(k in text for k in _kw):
             import re as _r, asyncio as _a, functools as _f
+            import sys as _sys, os as _os
+            _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))), "search"))
             from kb_manage import _do_search as _kbs
             for _n in _r.findall("[\u4e00-\u9fa5]{2,4}", text)[:2]:
                 _res = await _a.get_event_loop().run_in_executor(None, _f.partial(_kbs, _n))

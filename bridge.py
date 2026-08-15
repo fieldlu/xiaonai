@@ -157,6 +157,30 @@ import sys as _sys
 _sys.path.insert(0, '/opt/xiaonai')
 from sanitizer import sanitize_message
 
+# 工具脚本目录映射（仓库按功能分目录：campus/ search/ admin/ tools/）
+_SCRIPT_DIRS = {
+    "campus_daily.py": "campus", "campus_fetch.py": "campus", "campus_search.py": "campus",
+    "webvpn_login.py": "campus", "webvpn_rsa_login.py": "campus", "whut_login.py": "campus",
+    "whut_plan_api.py": "campus", "whut_proxy.py": "campus", "whut_score_api.py": "campus",
+    "score_query.py": "search", "zs_plan_query.py": "search", "zs_whut_search.py": "search",
+    "kb_manage.py": "search", "kb_semantic.py": "search", "kb_search.py": "search",
+    "rebuild_kb_index.py": "search", "smart_search.py": "search", "searxng_proxy.py": "search",
+    "scholar_search.py": "search", "resource_search.py": "search",
+    "admin_cli.py": "admin", "admin_group_control.py": "admin", "health_notify.py": "admin",
+    "self_test.py": "admin", "bridge_health.py": "admin", "proactive_check.py": "admin",
+    "session_cleaner.py": "admin", "session_cleaner_v2.py": "admin", "timed_msg.py": "admin",
+    "alarm_manager.py": "admin", "exam_countdown.py": "admin", "notify_classmate.py": "admin",
+    "docx_export_helper.py": "tools", "xiaonai_doc_tools_v2.py": "tools", "xlsx_to_docx.py": "tools",
+    "make_simple_docx.py": "tools", "fill_xlsx.py": "tools", "cq_convert.py": "tools",
+    "say_voice_cli.py": "tools", "wechat_fetch.py": "tools", "tools_update.py": "tools",
+    "onebot_http_proxy.py": "tools", "napcat_ws_bridge.py": "tools",
+    "consultation_server.py": "tools", "safe_cleanup_test.py": "tools",
+}
+
+def _script_path(name: str) -> str:
+    """Resolve a tool script path under its functional directory."""
+    return _os.path.join(_os.path.dirname(__file__), _SCRIPT_DIRS.get(name, ""), name)
+
 # Session resume: inject recent context after session cleanup
 def _check_session_resume(session_key):
     resume_file = os.path.expanduser(f"~/.openclaw/agents/main/agent/resume_{session_key.replace(':', '_').replace('-', '_')}.json")
@@ -537,7 +561,7 @@ def _inject_command_data_v1(msg, user_name=""):
     if wx_urls:
         for wx_url in wx_urls[:3]:
             try:
-                r = subprocess.run(["python3", _os.path.join(qqbot_dir, "wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
+                r = subprocess.run(["python3", _script_path("wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
                 if r.stdout and len(r.stdout) > 200:
                     d = _json.loads(r.stdout)
                     title = d.get("title", "")
@@ -553,7 +577,7 @@ def _inject_command_data_v1(msg, user_name=""):
         yr = 2026; ym = re.findall(r"20[2-9]\d", msg)
         if ym: yr = int(ym[0])
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
+            r = subprocess.run(["python3", _script_path("zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
             if r.stdout and "[X]" not in r.stdout[:10]:
                 out.append(r.stdout.strip())
         except: pass
@@ -571,7 +595,7 @@ def _inject_command_data_v1(msg, user_name=""):
         if yr not in years: years = [yr] + years[:2]
         for y in years[:3]:
             try:
-                args = ["python3", _os.path.join(qqbot_dir, "score_query.py"), pv, str(y), "--smart"]
+                args = ["python3", _script_path("score_query.py"), pv, str(y), "--smart"]
                 if score_val: args.append("--score=" + str(score_val))
                 r = subprocess.run(args, capture_output=True, text=True, timeout=25)
                 if r.stdout and len(r.stdout) > 80:
@@ -582,7 +606,7 @@ def _inject_command_data_v1(msg, user_name=""):
     # -- Campus notices --
     if re.search(r"学校通知|校园通知|综合信息|本科生院|教务处通知|研究生院通知|campus|notice|查.*通知|有什么通知|最新.*通知|最近.*通知|看.*通知|新闻|校园网|综合新闻|校内通知", msg):
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _script_path("campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout) > 50:
                 out.append("[学校通知 - i.whut.edu.cn]\n" + r.stdout.strip())
         except: pass
@@ -590,7 +614,7 @@ def _inject_command_data_v1(msg, user_name=""):
     kw = r"课件|题库|资料|资源|习题|复习|试卷|答案|教材|ppt|PPT|pdf|PDF|电子书|笔记|期末|考试题|历年|模拟|考研|保研|毕设|大物|高数|线代|概统|概率|数电|模电|计组|计网|复变|思修|史纲|近代史|马原|毛概|习概|四级|六级|CET|工图|电工|材力|理力|数分|高代"
     if re.search(kw, msg) and len(msg) > 3:
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _script_path("resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout.strip()) > 50:
                 raw_lines = [ln for ln in r.stdout.strip().split("\n") if ln.strip() and not ln.startswith("SITE")]
                 if raw_lines:
@@ -602,7 +626,7 @@ def _inject_command_data_v1(msg, user_name=""):
     is_note = len(msg) > 200
     if not out and is_q and not is_cmd and not is_note and len(msg) > 5:
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
+            r = subprocess.run(["python3", _script_path("smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
             if r.stdout and len(r.stdout) > 100:
                 out.append("[知识库搜索结果]\n" + r.stdout.strip()[:4000])
         except: pass
@@ -750,7 +774,7 @@ def _exec_plan(q, out):
     yr = 2026; ym = re.findall(r"20[2-9]\d", q)
     if ym: yr = int(ym[0])
     try:
-        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
+        r = subprocess.run(["python3", _script_path("zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
         if r.stdout and "[X]" not in r.stdout[:10]:
             out.append(r.stdout.strip())
     except Exception:
@@ -772,7 +796,7 @@ def _exec_score(q, out):
     if yr not in years: years = [yr] + years[:2]
     for y in years[:3]:
         try:
-            args = ["python3", _os.path.join(qqbot_dir, "score_query.py"), pv, str(y), "--smart"]
+            args = ["python3", _script_path("score_query.py"), pv, str(y), "--smart"]
             if score_val: args.append("--score=" + str(score_val))
             r = subprocess.run(args, capture_output=True, text=True, timeout=25)
             if r.stdout and len(r.stdout) > 80:
@@ -787,7 +811,7 @@ def _exec_campus(out):
     import subprocess, os as _os
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["python3", _script_path("campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
         if r.stdout and len(r.stdout) > 50:
             out.append("[学校通知 - i.whut.edu.cn]\n" + r.stdout.strip())
     except Exception:
@@ -798,7 +822,7 @@ def _exec_resource(q, out):
     import subprocess, os as _os
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "resource_search.py"), q[:200]], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["python3", _script_path("resource_search.py"), q[:200]], capture_output=True, text=True, timeout=30)
         if r.stdout and len(r.stdout.strip()) > 50:
             raw_lines = [ln for ln in r.stdout.strip().split("\n") if ln.strip() and not ln.startswith("SITE")]
             if raw_lines:
@@ -812,7 +836,7 @@ def _exec_exam(q, out):
     import subprocess, os as _os
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "exam_countdown.py"), "list"], capture_output=True, text=True, timeout=15)
+        r = subprocess.run(["python3", _script_path("exam_countdown.py"), "list"], capture_output=True, text=True, timeout=15)
         if r.stdout and len(r.stdout.strip()) > 0:
             out.append("[考试倒计时]\n" + r.stdout.strip()[:1500])
     except Exception:
@@ -824,7 +848,7 @@ def _exec_paper(q, out):
     import subprocess, os as _os, json as _json
     qqbot_dir = _os.path.dirname(__file__)
     try:
-        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "scholar_search.py"), "search", q[:120], "--rows", "3"],
+        r = subprocess.run(["python3", _script_path("scholar_search.py"), "search", q[:120], "--rows", "3"],
                            capture_output=True, text=True, timeout=30)
         if not r.stdout or len(r.stdout.strip()) < 30:
             return
@@ -935,7 +959,7 @@ def _exec_kb(q, out):
     rewritten = _rewrite_kb_query(q)
     query = (q + "," + rewritten) if rewritten else q
     try:
-        r = subprocess.run(["python3", _os.path.join(qqbot_dir, "smart_search.py"), query[:80]], capture_output=True, text=True, timeout=25)
+        r = subprocess.run(["python3", _script_path("smart_search.py"), query[:80]], capture_output=True, text=True, timeout=25)
         if r.stdout and len(r.stdout) > 100:
             out.append("[知识库搜索结果]\n" + r.stdout.strip()[:4000])
     except Exception:
@@ -1058,7 +1082,7 @@ def _exec_reminder(r):
             tgt += ["--group", str(r["group_id"])]
         if r["user_id"]:
             tgt += ["--user", str(r["user_id"])]
-        args = ["python3", _os.path.join(qqbot_dir, "timed_msg.py"), "add"] + tgt + ["--at", r["send_at"], "--msg", r["content"]]
+        args = ["python3", _script_path("timed_msg.py"), "add"] + tgt + ["--at", r["send_at"], "--msg", r["content"]]
         if r["recurring"]:
             args += ["--recurring", r["recurring"]]
             if r["recur_dow"] is not None:
@@ -1192,7 +1216,7 @@ def _handle_reminder(msg, uid, gid):
         return None
     try:
         r = subprocess.run(
-            ["python3", _os.path.join(_os.path.dirname(__file__), "timed_msg.py"), "add"] + tgt
+            ["python3", _script_path("timed_msg.py"), "add"] + tgt
             + ["--at", send_at, "--msg", content],
             capture_output=True, text=True, timeout=10)
         if r.returncode == 0 or "added" in r.stdout.lower():
@@ -1223,7 +1247,7 @@ def _inject_command_data(msg, user_name="", uid=0, gid=0):
     if wx_urls:
         for wx_url in wx_urls[:3]:
             try:
-                r = subprocess.run(["python3", _os.path.join(qqbot_dir, "wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
+                r = subprocess.run(["python3", _script_path("wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
                 if r.stdout and len(r.stdout) > 200:
                     d = _json.loads(r.stdout)
                     title = d.get("title", ""); content = d.get("content", "")
@@ -1274,7 +1298,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     if wx_urls:
         for wx_url in wx_urls[:3]:
             try:
-                r = subprocess.run(["python3", _os.path.join(qqbot_dir, "wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
+                r = subprocess.run(["python3", _script_path("wechat_fetch.py"), wx_url], capture_output=True, text=True, timeout=15)
                 if r.stdout and len(r.stdout) > 200:
                     d = _json.loads(r.stdout)
                     title = d.get("title", "")
@@ -1290,7 +1314,7 @@ def _inject_command_data_legacy(msg, user_name=""):
         yr = 2026; ym = re.findall(r"20[2-9]\d", msg)
         if ym: yr = int(ym[0])
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
+            r = subprocess.run(["python3", _script_path("zs_plan_query.py"), pv, str(yr)], capture_output=True, text=True, timeout=20)
             if r.stdout and "[X]" not in r.stdout[:10]:
                 out.append(r.stdout.strip())
         except: pass
@@ -1308,7 +1332,7 @@ def _inject_command_data_legacy(msg, user_name=""):
         if yr not in years: years = [yr] + years[:2]
         for y in years[:3]:
             try:
-                args = ["python3", _os.path.join(qqbot_dir, "score_query.py"), pv, str(y), "--smart"]
+                args = ["python3", _script_path("score_query.py"), pv, str(y), "--smart"]
                 if score_val: args.append("--score=" + str(score_val))
                 r = subprocess.run(args, capture_output=True, text=True, timeout=25)
                 if r.stdout and len(r.stdout) > 80:
@@ -1319,7 +1343,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     # -- Campus notices --
     if re.search(r"学校通知|校园通知|综合信息|本科生院|教务处通知|研究生院通知|campus|notice|查.*通知|有什么通知|最新.*通知|最近.*通知|看.*通知|新闻|校园网|综合新闻|校内通知", msg):
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _script_path("campus_daily.py"), "--today"], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout) > 50:
                 out.append("[学校通知 - i.whut.edu.cn]\n" + r.stdout.strip())
         except: pass
@@ -1327,7 +1351,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     kw = r"课件|题库|资料|资源|习题|复习|试卷|答案|教材|ppt|PPT|pdf|PDF|电子书|笔记|期末|考试题|历年|模拟|考研|保研|毕设|大物|高数|线代|概统|概率|数电|模电|计组|计网|复变|思修|史纲|近代史|马原|毛概|习概|四级|六级|CET|工图|电工|材力|理力|数分|高代"
     if re.search(kw, msg) and len(msg) > 3:
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(["python3", _script_path("resource_search.py"), msg[:200]], capture_output=True, text=True, timeout=30)
             if r.stdout and len(r.stdout.strip()) > 50:
                 raw_lines = [ln for ln in r.stdout.strip().split("\n") if ln.strip() and not ln.startswith("SITE")]
                 if raw_lines:
@@ -1339,7 +1363,7 @@ def _inject_command_data_legacy(msg, user_name=""):
     is_note = len(msg) > 200
     if not out and is_q and not is_cmd and not is_note and len(msg) > 5:
         try:
-            r = subprocess.run(["python3", _os.path.join(qqbot_dir, "smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
+            r = subprocess.run(["python3", _script_path("smart_search.py"), msg[:80]], capture_output=True, text=True, timeout=25)
             if r.stdout and len(r.stdout) > 100:
                 out.append("[知识库搜索结果]\n" + r.stdout.strip()[:4000])
         except: pass
@@ -1866,7 +1890,7 @@ async def handle_qq_message(ws, data):
     _is_clear = any(kw in msg_for_agent for kw in _clear_keywords)
     _is_admin = role == "admin"
     if _is_clear and _is_admin:
-        _p = _sp.run(["python3", "/opt/xiaonai/session_cleaner_v2.py",
+        _p = _sp.run(["python3", _script_path("session_cleaner_v2.py"),
                       "--purge-session", session_key],
                      capture_output=True, timeout=10)
         log.info("PURGE key=%s rc=%s out=%s", session_key, _p.returncode,

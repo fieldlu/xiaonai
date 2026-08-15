@@ -27,7 +27,7 @@ assignees: ""
 - [ ] `ruff check .` 通过
 - [ ] `python -m compileall -q .` 通过
 - [ ] `bash scripts/scan_secrets.sh` 通过（无泄露）
-- [ ] `python3 self_test.py`（或相关自检）通过
+- [ ] `python3 admin/self_test.py`（或相关自检）通过
 
 ## 相关 Issue
 

@@ -2,8 +2,8 @@
 """WHUT enrollment plan query tool.
 Queries zs.whut.edu.cn for per-major enrollment plans (招生计划).
 Usage:
-  python3 whut_plan_api.py 广西 2025 物理类
-  python3 whut_plan_api.py 湖北 2025 物理类
+  python3 campus/whut_plan_api.py 广西 2025 物理类
+  python3 campus/whut_plan_api.py 湖北 2025 物理类
 """
 import sys, urllib.request, urllib.parse, json
 

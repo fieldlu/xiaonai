@@ -2,19 +2,19 @@
 """XiaoNai Admin CLI — unified command center for bot operations.
 
 Usage:
-  python3 admin_cli.py status              Full system status dashboard
-  python3 admin_cli.py logs <svc> [n]      View recent logs (bridge|qq|openclaw|scheduler|searxng)
-  python3 admin_cli.py restart <svc>       Restart a service
-  python3 admin_cli.py restart all         Restart all services
-  python3 admin_cli.py agent [cmd]         Agent control (reload|model|session|clear|run)
-  python3 admin_cli.py cron [cmd]          Cron job management (list|add|rm|run)
-  python3 admin_cli.py timed_msg [cmd]  Timed msg queue (list|pending|rm|help)
-  python3 admin_cli.py diag                Full diagnostic report
-  python3 admin_cli.py fix                 Auto-fix common issues
-  python3 admin_cli.py config [cmd]        Config management (show|reload)
-  python3 admin_cli.py send <target> <msg> Send message to group/user
-  python3 admin_cli.py sessions            List active sessions
-  python3 admin_cli.py help                Show this help
+  python3 admin/admin_cli.py status              Full system status dashboard
+  python3 admin/admin_cli.py logs <svc> [n]      View recent logs (bridge|qq|openclaw|scheduler|searxng)
+  python3 admin/admin_cli.py restart <svc>       Restart a service
+  python3 admin/admin_cli.py restart all         Restart all services
+  python3 admin/admin_cli.py agent [cmd]         Agent control (reload|model|session|clear|run)
+  python3 admin/admin_cli.py cron [cmd]          Cron job management (list|add|rm|run)
+  python3 admin/admin_cli.py timed_msg [cmd]  Timed msg queue (list|pending|rm|help)
+  python3 admin/admin_cli.py diag                Full diagnostic report
+  python3 admin/admin_cli.py fix                 Auto-fix common issues
+  python3 admin/admin_cli.py config [cmd]        Config management (show|reload)
+  python3 admin/admin_cli.py send <target> <msg> Send message to group/user
+  python3 admin/admin_cli.py sessions            List active sessions
+  python3 admin/admin_cli.py help                Show this help
 """
 
 import subprocess, sys, json, os, time
@@ -61,7 +61,7 @@ def cmd_status():
         lines.append(f"  {icon} {name}: {state}")
 
     # Bridge health
-    code, out = run(f"cd {QQBOT_DIR} && python3 bridge_health.py")
+    code, out = run(f"cd {QQBOT_DIR} && python3 admin/bridge_health.py")
     lines.append(f"\n--- 健康检查 ---")
     try:
         h = json.loads(out)
@@ -113,6 +113,7 @@ def cmd_status():
     # Smart search cache
     try:
         import time
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "search"))
         from smart_search import _CACHE
         lines.append(f"\n--- 搜索缓存 ---")
         lines.append(f"  条目数: {len(_CACHE)}")
@@ -224,7 +225,7 @@ def cmd_agent(args):
             print(f"❌ {e}")
 
     elif subcmd == "clear":
-        code, out = run(f"cd {QQBOT_DIR} && python3 session_cleaner_v2.py --force 2>&1")
+        code, out = run(f"cd {QQBOT_DIR} && python3 admin/session_cleaner_v2.py --force 2>&1")
         print(out)
 
     elif subcmd == "sessions":
@@ -253,16 +254,16 @@ def cmd_cron(args):
 def cmd_timed_msg(args):
     import subprocess as _sp
     if not args or args[0] == "list":
-        r = _sp.run(["python3", "/opt/xiaonai/timed_msg.py", "list", "--all"], capture_output=True, text=True)
+        r = _sp.run(["python3", "/opt/xiaonai/admin/timed_msg.py", "list", "--all"], capture_output=True, text=True)
         print((r.stdout or "").strip() or "(empty)")
     elif args[0] == "pending":
-        r = _sp.run(["python3", "/opt/xiaonai/timed_msg.py", "pending"], capture_output=True, text=True)
+        r = _sp.run(["python3", "/opt/xiaonai/admin/timed_msg.py", "pending"], capture_output=True, text=True)
         print((r.stdout or "").strip() or "(no pending)")
     elif args[0] == "rm":
         if len(args) < 2:
             print("Usage: admin_cli.py timed_msg rm <id>")
             return
-        r = _sp.run(["python3", "/opt/xiaonai/timed_msg.py", "rm", args[1]], capture_output=True, text=True)
+        r = _sp.run(["python3", "/opt/xiaonai/admin/timed_msg.py", "rm", args[1]], capture_output=True, text=True)
         print((r.stdout or "").strip())
     elif args[0] == "help":
         print("timed_msg subcommands:")
@@ -270,7 +271,7 @@ def cmd_timed_msg(args):
         print("  pending       - Show pending (unsent) messages")
         print("  rm <id>       - Remove a message")
         print("  help          - This help")
-        print("  (to ADD a message: python3 /opt/xiaonai/timed_msg.py add ...)")
+        print("  (to ADD a message: python3 /opt/xiaonai/admin/timed_msg.py add ...)")
     else:
         print("Unknown, available: list, pending, rm, help")
 
@@ -290,7 +291,7 @@ def cmd_diag():
 
     # Bridge health
     print("\n[2/6] Bridge健康")
-    code, out = run(f"cd {QQBOT_DIR} && python3 bridge_health.py")
+    code, out = run(f"cd {QQBOT_DIR} && python3 admin/bridge_health.py")
     print(f"  {out[:300]}")
 
     # Recent errors
@@ -328,7 +329,7 @@ def cmd_fix():
 
     # 1. Health check + fix
     print("[1] 健康检查...")
-    code, out = run(f"cd {QQBOT_DIR} && python3 bridge_health.py --fix 2>&1")
+    code, out = run(f"cd {QQBOT_DIR} && python3 admin/bridge_health.py --fix 2>&1")
     print(f"  {out[:200]}")
 
     # 2. Clean stale locks
@@ -346,7 +347,7 @@ def cmd_fix():
 
     # 3. Run session cleaner
     print("[3] 清理过期session...")
-    code, out = run(f"cd {QQBOT_DIR} && python3 session_cleaner_v2.py 2>&1")
+    code, out = run(f"cd {QQBOT_DIR} && python3 admin/session_cleaner_v2.py 2>&1")
     print(f"  {out[:200]}")
 
     # 4. Verify services
@@ -365,7 +366,7 @@ def cmd_fix():
 def cmd_config(args):
     """Config management."""
     if not args or args[0] == "show":
-        code, out = run(f"cd {QQBOT_DIR} && python3 admin_group_control.py show_config")
+        code, out = run(f"cd {QQBOT_DIR} && python3 admin/admin_group_control.py show_config")
         print(out)
     elif args[0] == "reload":
         code, out = run(f"curl -s -X POST {BRIDGE_HTTP}/reload")

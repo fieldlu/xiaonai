@@ -4,8 +4,8 @@
 High-quality academic paper search with abstracts, citations, and journal info.
 
 Usage:
-  python3 scholar_search.py search <query> [--rows N]
-  python3 scholar_search.py health
+  python3 search/scholar_search.py search <query> [--rows N]
+  python3 search/scholar_search.py health
 
 JSON output format (backward compatible with v1):
   {

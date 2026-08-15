@@ -4,16 +4,16 @@ safe_cleanup_test.py — 安全清理测试沙箱
 
 用法：
     # 只打印会删什么，不删任何文件（推荐先跑这个）
-    python3 safe_cleanup_test.py
+    python3 tools/safe_cleanup_test.py
 
     # 真正执行（回收站模式，不直接删）
-    python3 safe_cleanup_test.py --live
+    python3 tools/safe_cleanup_test.py --live
 
     # 查看回收站
-    python3 safe_cleanup_test.py --trash
+    python3 tools/safe_cleanup_test.py --trash
 
     # 清空回收站（7天前的文件）
-    python3 safe_cleanup_test.py --purge
+    python3 tools/safe_cleanup_test.py --purge
 
 安全设计：
     - 默认 dry-run，不碰任何文件

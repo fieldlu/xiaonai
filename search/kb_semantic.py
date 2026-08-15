@@ -3,8 +3,8 @@
 Zero external deps beyond numpy. Uses TF-IDF with char n-grams over document CHUNKS.
 
 Usage:
-  python3 kb_semantic.py build           # Pre-compute TF-IDF index (chunked)
-  python3 kb_semantic.py search <query>   # Search with similarity ranking
+  python3 search/kb_semantic.py build           # Pre-compute TF-IDF index (chunked)
+  python3 search/kb_semantic.py search <query>   # Search with similarity ranking
 """
 import sys, os, glob, json, math, re, pickle
 from collections import Counter
@@ -169,7 +169,7 @@ def search(query, top_k=10):
     Returns [(file_stem, max_sim, best_chunk_text), ...]"""
     meta, doc_vectors, doc_norms, n_vocab = load_index()
     if meta is None:
-        print("[semantic] Index not found. Run 'python3 kb_semantic.py build' first")
+        print("[semantic] Index not found. Run 'python3 search/kb_semantic.py build' first")
         return []
     vocab = meta["vocab"]
     idf = meta["idf"]
@@ -227,4 +227,4 @@ if __name__ == "__main__":
         for stem, sim, sn in res:
             print("%.3f %s: %s" % (sim, stem, sn[:60].replace("\n", " ")))
     else:
-        print("Usage: python3 kb_semantic.py build|search <query>")
+        print("Usage: python3 search/kb_semantic.py build|search <query>")

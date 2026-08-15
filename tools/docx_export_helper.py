@@ -2,8 +2,8 @@
 """XiaoNai Literature Export Tool — Search papers + export as formatted .docx.
 
 Modes:
-  python3 docx_export_helper.py search <query> [--rows N] -o <output.docx>
-  python3 docx_export_helper.py from-json <papers.json> -o <output.docx> [--query "..."]
+  python3 tools/docx_export_helper.py search <query> [--rows N] -o <output.docx>
+  python3 tools/docx_export_helper.py from-json <papers.json> -o <output.docx> [--query "..."]
 
 Mode 'search': internally calls scholar_search, then generates .docx (recommended).
 Mode 'from-json': reads existing papers JSON, generates .docx (debug/regeneration).
@@ -46,7 +46,7 @@ SOURCES = ["OpenAlex (2.44亿+学术作品)"]
 
 def search_papers(query: str, rows: int = 10) -> dict:
     """Run scholar_search.py and return parsed JSON result."""
-    scholar = _SCRIPT_DIR / "scholar_search.py"
+    scholar = (_SCRIPT_DIR / ".." / "search" / "scholar_search.py").resolve()
     if not scholar.exists():
         # fallback to PATH
         scholar = "scholar_search.py"

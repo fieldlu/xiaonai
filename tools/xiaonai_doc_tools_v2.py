@@ -2,17 +2,17 @@
 """XiaoNai Document Tools v2 - Universal document reader & creator.
 
 Read any document:
-  python3 xiaonai_doc_tools_v2.py read <file> [-n N]
+  python3 tools/xiaonai_doc_tools_v2.py read <file> [-n N]
 
 Create documents:
-  python3 xiaonai_doc_tools_v2.py make docx <out> <title> <content>
-  python3 xiaonai_doc_tools_v2.py make xlsx <out> <json>
-  python3 xiaonai_doc_tools_v2.py make pdf  <out> <title> <content>
-  python3 xiaonai_doc_tools_v2.py make pptx <out> <title> <content>
-  python3 xiaonai_doc_tools_v2.py make md   <out> <content>
+  python3 tools/xiaonai_doc_tools_v2.py make docx <out> <title> <content>
+  python3 tools/xiaonai_doc_tools_v2.py make xlsx <out> <json>
+  python3 tools/xiaonai_doc_tools_v2.py make pdf  <out> <title> <content>
+  python3 tools/xiaonai_doc_tools_v2.py make pptx <out> <title> <content>
+  python3 tools/xiaonai_doc_tools_v2.py make md   <out> <content>
 
 Convert:
-  python3 xiaonai_doc_tools_v2.py convert <in> <out>
+  python3 tools/xiaonai_doc_tools_v2.py convert <in> <out>
 """
 import sys, os, subprocess, json, io
 

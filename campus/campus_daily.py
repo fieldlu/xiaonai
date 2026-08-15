@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fetch yesterday's notices from WHUT 综合信息网 (学校通知).
-Usage: python3 campus_daily.py [--today]
+Usage: python3 campus/campus_daily.py [--today]
 Outputs formatted QQ message with yesterday's (or today's) new notices.
 """
 import sys, re, os, json
@@ -14,7 +14,7 @@ _use_today = '--today' in _original_argv
 TARGET_DATE = datetime.now().strftime('%Y-%m-%d') if _use_today else (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
 
 sys.argv = ['campus_search.py', '__campus_daily__']
-sys.path.insert(0, '/opt/xiaonai')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Suppress campus_search module-level search output
 _real_stdout = sys.stdout
 sys.stdout = open(os.devnull, 'w')

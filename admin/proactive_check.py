@@ -42,7 +42,7 @@ def _get_test_group():
 
 def check_health():
     """Run bridge_health.py and return issues."""
-    code, out = run("cd /opt/xiaonai && python3 bridge_health.py")
+    code, out = run("cd /opt/xiaonai && python3 admin/bridge_health.py")
     issues = []
     try:
         data = json.loads(out)
@@ -55,7 +55,7 @@ def check_health():
 
 def check_alarms():
     """Check for due alarms and dispatch them via QQ."""
-    code, out = run("cd /opt/xiaonai && python3 alarm_manager.py check")
+    code, out = run("cd /opt/xiaonai && python3 admin/alarm_manager.py check")
     dispatched = 0
     if "ALARM_DUE:" in out:
         for line in out.split('\n'):

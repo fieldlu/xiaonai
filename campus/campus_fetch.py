@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Fetch WHUT campus page content via WebVPN.
-Usage: python3 campus_fetch.py <url>
+Usage: python3 campus/campus_fetch.py <url>
 Reuses campus_search.py's CAS login session.
 """
-import sys, re, subprocess
+import sys, re, subprocess, os
 from bs4 import BeautifulSoup
 
 def fetch(url):
     # Reuse campus_search's authenticated session
     sys.argv = ['campus_search.py', 'dummy_keyword_for_import']
-    sys.path.insert(0, '/opt/xiaonai')
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import campus_search
     session = campus_search.session
     encode_url = campus_search.encode_url
@@ -61,6 +61,6 @@ def fetch(url):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python3 campus_fetch.py <url>")
+        print("Usage: python3 campus/campus_fetch.py <url>")
         sys.exit(1)
     print(fetch(sys.argv[1]))

@@ -20,7 +20,7 @@ mkdir -p data/knowledge data/uploads data/memory
 
 # 放置你的知识库文件到 data/knowledge/
 # 然后重建索引：
-python3 rebuild_kb_index.py
+python3 search/rebuild_kb_index.py
 ```
 
 > 知识库自建方法见 [docs/KNOWLEDGE-BASE-GUIDE.md](../docs/KNOWLEDGE-BASE-GUIDE.md)。

@@ -28,7 +28,7 @@ pip install -r requirements-dev.txt   # ruff / pytest / mypy
 cp .env.example .env
 
 # 3. 运行自检确认环境正常
-python3 self_test.py --full
+python3 admin/self_test.py --full
 ```
 
 ## 项目约定

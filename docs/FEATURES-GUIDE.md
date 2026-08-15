@@ -101,7 +101,7 @@ MIMO_API_KEY=你的key
 MIMO_BASE_URL=https://opencode.ai/zen/go/v1   # 可换任意 OpenAI 兼容端点
 ```
 - 换模型需改代码：`src/llm/client.py` 中 `model="mimo-v2.5"`。
-- 知识库上下文：把 `.md` 放入 `data/knowledge/` 后跑 `python3 rebuild_kb_index.py`。
+- 知识库上下文：把 `.md` 放入 `data/knowledge/` 后跑 `python3 search/rebuild_kb_index.py`。
 
 **使用**：私聊/群里直接发消息。群内是否回复取决于群类型（见第五章）。
 
@@ -262,12 +262,12 @@ pip install edge-tts
 
 **使用**
 ```bash
-python3 alarm_manager.py set "08:00" "该起床啦"
-python3 alarm_manager.py set "2026-06-01 08:00" "考试日"
-python3 alarm_manager.py set "30min" "30分钟后提醒"
-python3 alarm_manager.py list
-python3 alarm_manager.py cancel <id尾部>
-python3 alarm_manager.py check      # 输出到期闹钟（由 proactive_check 调用）
+python3 admin/alarm_manager.py set "08:00" "该起床啦"
+python3 admin/alarm_manager.py set "2026-06-01 08:00" "考试日"
+python3 admin/alarm_manager.py set "30min" "30分钟后提醒"
+python3 admin/alarm_manager.py list
+python3 admin/alarm_manager.py cancel <id尾部>
+python3 admin/alarm_manager.py check      # 输出到期闹钟（由 proactive_check 调用）
 ```
 
 ---
@@ -341,26 +341,26 @@ python3 -c "from src.llm.tools_impl import TOOL_IMPL; print(len(TOOL_IMPL))"  # 
 1. 建目录并放入 Markdown 文档：`data/knowledge/`
 2. 一键重建三类索引：
 ```bash
-python3 rebuild_kb_index.py
+python3 search/rebuild_kb_index.py
 ```
 > 生成 `index.json`（主题索引）、`semantic_index.pkl` + `semantic_cache.npz`（语义）、`bm25_index.pkl`（BM25）。
 > ⚠️ 注意：`kb_manage.py` 用绝对路径 `/opt/xiaonai/data/knowledge`，`kb_semantic.py` 用相对路径 `data/knowledge`——若不在 `/opt/xiaonai` 部署，语义索引需先 `cd` 到项目根再跑。
 
 **使用**（对话自动触发 `search_knowledge`；CLI 全套）
 ```bash
-python3 kb_manage.py list                          # 列出所有条目
-python3 kb_manage.py view <主题>                    # 查看条目
-python3 kb_manage.py add <主题> <内容>              # 新增
-python3 kb_manage.py add <主题> @<文件路径>          # 从 docx/pdf/txt/xlsx 文件导入
-python3 kb_manage.py update <主题> <内容>           # 更新
-python3 kb_manage.py delete <主题>                  # 删除（精确+模糊）
-python3 kb_manage.py search <关键词>                # BM25→精确→模糊→短词重试
-python3 kb_manage.py semantic <查询>                # 语义搜索
-python3 kb_manage.py import <文件路径> [主题]        # 导入文档为条目
-python3 kb_manage.py reindex                       # 从磁盘重建 index.json
+python3 search/kb_manage.py list                          # 列出所有条目
+python3 search/kb_manage.py view <主题>                    # 查看条目
+python3 search/kb_manage.py add <主题> <内容>              # 新增
+python3 search/kb_manage.py add <主题> @<文件路径>          # 从 docx/pdf/txt/xlsx 文件导入
+python3 search/kb_manage.py update <主题> <内容>           # 更新
+python3 search/kb_manage.py delete <主题>                  # 删除（精确+模糊）
+python3 search/kb_manage.py search <关键词>                # BM25→精确→模糊→短词重试
+python3 search/kb_manage.py semantic <查询>                # 语义搜索
+python3 search/kb_manage.py import <文件路径> [主题]        # 导入文档为条目
+python3 search/kb_manage.py reindex                       # 从磁盘重建 index.json
 # 兼容入口：
-python3 kb_search.py <关键词>                       # = kb_manage search
-python3 kb_search.py -s <查询>                      # = kb_manage semantic
+python3 search/kb_search.py <关键词>                       # = kb_manage search
+python3 search/kb_search.py -s <查询>                      # = kb_manage semantic
 ```
 
 **数据存储**：`data/knowledge/*.md`、`index.json`、`bm25_index.pkl`、`semantic_index.pkl`、`semantic_cache.npz`。
@@ -379,19 +379,19 @@ python3 kb_search.py -s <查询>                      # = kb_manage semantic
 
 **使用**
 ```bash
-python3 score_query.py list                          # 列出省份
-python3 score_query.py 湖北                           # 湖北全部年份/科类综合
-python3 score_query.py 湖北 2024                      # 指定年份
-python3 score_query.py 湖北 2024 物理类 计算机 --score 620   # 科类+关键词+分数
-python3 score_query.py 湖北 --score 620               # 620 分能报的专业
-python3 score_query.py 湖北 --smart                   # 智能招生分析（QQ 优化）
-python3 score_query.py 湖北 --trend                   # 位次趋势
+python3 search/score_query.py list                          # 列出省份
+python3 search/score_query.py 湖北                           # 湖北全部年份/科类综合
+python3 search/score_query.py 湖北 2024                      # 指定年份
+python3 search/score_query.py 湖北 2024 物理类 计算机 --score 620   # 科类+关键词+分数
+python3 search/score_query.py 湖北 --score 620               # 620 分能报的专业
+python3 search/score_query.py 湖北 --smart                   # 智能招生分析（QQ 优化）
+python3 search/score_query.py 湖北 --trend                   # 位次趋势
 ```
 
 **数据存储**：无（仅内存缓存）。另 `whut_score_api.py` 提供无缓存直连版 + 知识库年份完整性校验：
 ```bash
-python3 whut_score_api.py 湖北 --score 620
-python3 whut_score_api.py verify all                 # 校验全部省份知识库覆盖
+python3 campus/whut_score_api.py 湖北 --score 620
+python3 campus/whut_score_api.py verify all                 # 校验全部省份知识库覆盖
 ```
 
 ---
@@ -406,9 +406,9 @@ python3 whut_score_api.py verify all                 # 校验全部省份知识�
 
 **使用**
 ```bash
-python3 zs_plan_query.py 湖北                          # 默认年份 2025，全部科类
-python3 zs_plan_query.py 湖北 2024 物理类 计算机
-python3 whut_plan_api.py 广西 2025 物理类              # 简易版
+python3 search/zs_plan_query.py 湖北                          # 默认年份 2025，全部科类
+python3 search/zs_plan_query.py 湖北 2024 物理类 计算机
+python3 campus/whut_plan_api.py 广西 2025 物理类              # 简易版
 ```
 
 ---
@@ -421,11 +421,11 @@ python3 whut_plan_api.py 广西 2025 物理类              # 简易版
 
 **使用**
 ```bash
-python3 zs_whut_search.py search <关键词>    # 全站标题搜索
-python3 zs_whut_search.py list [页数]        # 通知列表
-python3 zs_whut_search.py read <路径>        # 读通知全文
-python3 zs_whut_search.py verify <关键词>    # 搜索 + 知识库校验
-python3 zs_whut_search.py scan               # 全站扫描
+python3 search/zs_whut_search.py search <关键词>    # 全站标题搜索
+python3 search/zs_whut_search.py list [页数]        # 通知列表
+python3 search/zs_whut_search.py read <路径>        # 读通知全文
+python3 search/zs_whut_search.py verify <关键词>    # 搜索 + 知识库校验
+python3 search/zs_whut_search.py scan               # 全站扫描
 ```
 
 ---
@@ -443,8 +443,8 @@ python3 zs_whut_search.py scan               # 全站扫描
 
 **使用**
 ```bash
-python3 smart_search.py <查询词...>    # 无参数默认查 YOUR_SCHOOL
-python3 searxng_proxy.py               # 前置：启动网页搜索代理（前台常驻）
+python3 search/smart_search.py <查询词...>    # 无参数默认查 YOUR_SCHOOL
+python3 search/searxng_proxy.py               # 前置：启动网页搜索代理（前台常驻）
 curl "http://127.0.0.1:8899/search?q=武汉理工&format=json"   # 验证代理
 ```
 
@@ -473,8 +473,8 @@ curl "http://127.0.0.1:8899/search?q=武汉理工&format=json"   # 验证代理
 
 **使用**
 ```bash
-python3 scholar_search.py search 深度强化学习 --rows 5
-python3 scholar_search.py health          # 健康检查
+python3 search/scholar_search.py search 深度强化学习 --rows 5
+python3 search/scholar_search.py health          # 健康检查
 ```
 
 ---
@@ -497,10 +497,10 @@ WEBVPN_PROXY=http://127.0.0.1:40000   # 可选代理
 
 **使用**
 ```bash
-python3 campus_search.py <关键词>          # 多线程搜索 6 源
-python3 campus_search.py --read <url>      # 读指定页
-python3 campus_fetch.py http://i.whut.edu.cn/...
-python3 webvpn_rsa_login.py                # 手动刷新登录 ticket（写入 .webvpn_ticket）
+python3 campus/campus_search.py <关键词>          # 多线程搜索 6 源
+python3 campus/campus_search.py --read <url>      # 读指定页
+python3 campus/campus_fetch.py http://i.whut.edu.cn/...
+python3 campus/webvpn_rsa_login.py                # 手动刷新登录 ticket（写入 .webvpn_ticket）
 ```
 
 **数据存储**：`.webvpn_ticket`（根目录，已被 .gitignore）。
@@ -523,9 +523,9 @@ AUTH = {"email": "你的邮箱", "password": "你的密码"}   # L7
 
 **使用**
 ```bash
-python3 resource_search.py 高数
-python3 resource_search.py --recent
-python3 resource_search.py --dirs
+python3 search/resource_search.py 高数
+python3 search/resource_search.py --recent
+python3 search/resource_search.py --dirs
 ```
 
 **数据存储**：`.resource_token`（token 缓存）。
@@ -563,7 +563,7 @@ python3 resource_search.py --dirs
 |------|------|------|
 | 123456789 | 张三 | 班长 |
 ```
-- **使用**：对话「通知张三明天开会」；CLI `python3 notify_classmate.py 张三 "消息"`。
+- **使用**：对话「通知张三明天开会」；CLI `python3 admin/notify_classmate.py 张三 "消息"`。
 
 ---
 
@@ -653,13 +653,13 @@ journalctl -u xiaonai-scheduler -f         # 看日志
 
 **使用**
 ```bash
-python3 exam_countdown.py add "英语四级" 2026-06-15 --type cet4 --remind 7
-python3 exam_countdown.py add "期末高数" 2026-07-05
-python3 exam_countdown.py list
-python3 exam_countdown.py days "期末高数"
-python3 exam_countdown.py delete "期末高数"
-python3 exam_countdown.py push       # 输出待推送 + 清理过期
-python3 exam_countdown.py archive    # 只清理过期
+python3 admin/exam_countdown.py add "英语四级" 2026-06-15 --type cet4 --remind 7
+python3 admin/exam_countdown.py add "期末高数" 2026-07-05
+python3 admin/exam_countdown.py list
+python3 admin/exam_countdown.py days "期末高数"
+python3 admin/exam_countdown.py delete "期末高数"
+python3 admin/exam_countdown.py push       # 输出待推送 + 清理过期
+python3 admin/exam_countdown.py archive    # 只清理过期
 ```
 
 **数据存储**：`data/exams.db`（表 exams）。
@@ -672,12 +672,12 @@ python3 exam_countdown.py archive    # 只清理过期
 
 **使用**
 ```bash
-python3 timed_msg.py add --group 群号 --at "2026-07-01 19:00" --msg "今晚班会有变"
-python3 timed_msg.py add --user QQ号 --at "2026-07-01 19:00" --msg "记得交作业" --recurring weekly --dow 1
-python3 timed_msg.py list [--all]
-python3 timed_msg.py rm <id>
-python3 timed_msg.py pending
-python3 timed_msg.py cleanup
+python3 admin/timed_msg.py add --group 群号 --at "2026-07-01 19:00" --msg "今晚班会有变"
+python3 admin/timed_msg.py add --user QQ号 --at "2026-07-01 19:00" --msg "记得交作业" --recurring weekly --dow 1
+python3 admin/timed_msg.py list [--all]
+python3 admin/timed_msg.py rm <id>
+python3 admin/timed_msg.py pending
+python3 admin/timed_msg.py cleanup
 ```
 
 **数据存储**：`data/timed_msg.json`。
@@ -756,14 +756,14 @@ API 凭据：`.env` 的 `QW_API_KEY` / `QW_API_HOST`。
 
 **使用**
 ```bash
-python3 admin_group_control.py add_class_group 群号
-python3 admin_group_control.py remove_class_group 群号
-python3 admin_group_control.py add_chat_group 群号
-python3 admin_group_control.py add_normal_group 群号
-python3 admin_group_control.py add_mute_group 群号
-python3 admin_group_control.py add_blacklist 群号
-python3 admin_group_control.py set_all_class | set_all_chat | set_all_normal | set_all_mute
-python3 admin_group_control.py show_config       # 查看全部配置+订阅
+python3 admin/admin_group_control.py add_class_group 群号
+python3 admin/admin_group_control.py remove_class_group 群号
+python3 admin/admin_group_control.py add_chat_group 群号
+python3 admin/admin_group_control.py add_normal_group 群号
+python3 admin/admin_group_control.py add_mute_group 群号
+python3 admin/admin_group_control.py add_blacklist 群号
+python3 admin/admin_group_control.py set_all_class | set_all_chat | set_all_normal | set_all_mute
+python3 admin/admin_group_control.py show_config       # 查看全部配置+订阅
 ```
 
 **数据存储**（`group_config.json`，5 键）
@@ -781,14 +781,14 @@ python3 admin_group_control.py show_config       # 查看全部配置+订阅
 
 **使用**（与 scheduler_config.json 联动）
 ```bash
-python3 admin_group_control.py subscribe 群号 all        # 订阅全部推送
-python3 admin_group_control.py subscribe 群号 weather
-python3 admin_group_control.py subscribe 群号 news
-python3 admin_group_control.py subscribe 群号 campus_daily
-python3 admin_group_control.py subscribe 群号 earthquake
-python3 admin_group_control.py subscribe 群号 weather_warning
-python3 admin_group_control.py subscribe 群号 exam_countdown
-python3 admin_group_control.py show_config               # 查看订阅明细
+python3 admin/admin_group_control.py subscribe 群号 all        # 订阅全部推送
+python3 admin/admin_group_control.py subscribe 群号 weather
+python3 admin/admin_group_control.py subscribe 群号 news
+python3 admin/admin_group_control.py subscribe 群号 campus_daily
+python3 admin/admin_group_control.py subscribe 群号 earthquake
+python3 admin/admin_group_control.py subscribe 群号 weather_warning
+python3 admin/admin_group_control.py subscribe 群号 exam_countdown
+python3 admin/admin_group_control.py show_config               # 查看订阅明细
 ```
 > ⚠️ **已知 bug**：`unsubscribe` 命令当前不真正执行（`sys.exit(0)` 缩进错误，admin_group_control.py L393-397）。想退订请直接改 `data/scheduler_config.json` 或订阅命令移除群号。
 
@@ -813,18 +813,18 @@ python3 admin_group_control.py show_config               # 查看订阅明细
 
 **使用**（全部子命令）
 ```bash
-python3 admin_cli.py                                # 无参数 = status
-python3 admin_cli.py status                         # 服务状态+健康 JSON+熔断器+磁盘内存
-python3 admin_cli.py logs <bridge|qq|openclaw|scheduler|searxng> [n]
-python3 admin_cli.py restart <服务名|all>
-python3 admin_cli.py agent help|reload|run <消息>|model <id>|clear|sessions
-python3 admin_cli.py cron list|rm <id>|run <id>
-python3 admin_cli.py timed_msg list|pending|rm <id>|help
-python3 admin_cli.py diag                            # 6 段诊断
-python3 admin_cli.py fix                             # 自动修复（bridge_health+清锁+重启）
-python3 admin_cli.py config show|reload
-python3 admin_cli.py send <群号|QQ号> <消息>          # ≥9 位数字=群，否则=QQ
-python3 admin_cli.py sessions
+python3 admin/admin_cli.py                                # 无参数 = status
+python3 admin/admin_cli.py status                         # 服务状态+健康 JSON+熔断器+磁盘内存
+python3 admin/admin_cli.py logs <bridge|qq|openclaw|scheduler|searxng> [n]
+python3 admin/admin_cli.py restart <服务名|all>
+python3 admin/admin_cli.py agent help|reload|run <消息>|model <id>|clear|sessions
+python3 admin/admin_cli.py cron list|rm <id>|run <id>
+python3 admin/admin_cli.py timed_msg list|pending|rm <id>|help
+python3 admin/admin_cli.py diag                            # 6 段诊断
+python3 admin/admin_cli.py fix                             # 自动修复（bridge_health+清锁+重启）
+python3 admin/admin_cli.py config show|reload
+python3 admin/admin_cli.py send <群号|QQ号> <消息>          # ≥9 位数字=群，否则=QQ
+python3 admin/admin_cli.py sessions
 ```
 
 ### 33. 健康自愈 🩺
@@ -863,9 +863,9 @@ python3 admin_cli.py sessions
 
 **使用**
 ```bash
-python3 session_cleaner_v2.py                # 安全清理
-python3 session_cleaner_v2.py --force
-python3 session_cleaner_v2.py --purge-session <session_key>   # 彻底清除（上下文不可恢复）
+python3 admin/session_cleaner_v2.py                # 安全清理
+python3 admin/session_cleaner_v2.py --force
+python3 admin/session_cleaner_v2.py --purge-session <session_key>   # 彻底清除（上下文不可恢复）
 ```
 
 ### 35. 主动巡检 🔍
@@ -882,8 +882,8 @@ python3 session_cleaner_v2.py --purge-session <session_key>   # 彻底清除（�
 
 **使用**
 ```bash
-python3 self_test.py            # 仅 L1
-python3 self_test.py --full     # L1+L3
+python3 admin/self_test.py            # 仅 L1
+python3 admin/self_test.py --full     # L1+L3
 ```
 输出 JSON 到 `data/self_test_state.json`，退出码 0/1。
 
@@ -899,7 +899,7 @@ python3 self_test.py --full     # L1+L3
 
 **配置**：可选 `~/.openclaw/agents/main/agent/CONSULT.md`；替换 `YOUR_SCHOOL`；依赖 aiohttp + OpenClaw。
 
-**使用**：`python3 consultation_server.py`，浏览器访问 `http://服务器IP:8082`。
+**使用**：`python3 tools/consultation_server.py`，浏览器访问 `http://服务器IP:8082`。
 
 ### 38. 文献导出 📄
 
@@ -908,8 +908,8 @@ python3 self_test.py --full     # L1+L3
 
 **使用**
 ```bash
-python3 docx_export_helper.py search "智能网联汽车" --rows 10 -o exports/报告.docx
-python3 docx_export_helper.py from-json <papers.json> -o 报告.docx [--query "检索词"]
+python3 tools/docx_export_helper.py search "智能网联汽车" --rows 10 -o exports/报告.docx
+python3 tools/docx_export_helper.py from-json <papers.json> -o 报告.docx [--query "检索词"]
 ```
 退出码 0/1/2/3。依赖 python-docx；输出默认 `exports/`。
 
@@ -920,10 +920,10 @@ python3 docx_export_helper.py from-json <papers.json> -o 报告.docx [--query "�
 
 **使用**
 ```bash
-python3 xiaonai_doc_tools_v2.py read <文件> [-n N]
-python3 xiaonai_doc_tools_v2.py make docx|xlsx|pdf|pptx|md <输出> <标题> <内容...>
-python3 xiaonai_doc_tools_v2.py make xlsx <输出> '{"Sheet1":[["a","b"]]}'
-python3 xiaonai_doc_tools_v2.py convert <输入> <输出>
+python3 tools/xiaonai_doc_tools_v2.py read <文件> [-n N]
+python3 tools/xiaonai_doc_tools_v2.py make docx|xlsx|pdf|pptx|md <输出> <标题> <内容...>
+python3 tools/xiaonai_doc_tools_v2.py make xlsx <输出> '{"Sheet1":[["a","b"]]}'
+python3 tools/xiaonai_doc_tools_v2.py convert <输入> <输出>
 ```
 依赖 python-docx/openpyxl/pdfplumber/python-pptx/reportlab（.doc 需 antiword/catdoc）。
 

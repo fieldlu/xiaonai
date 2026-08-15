@@ -10,8 +10,8 @@ def main():
     script = os.path.join(os.path.dirname(__file__), "kb_manage.py")
 
     if len(sys.argv) < 2:
-        print("Usage: python3 kb_search.py <keyword>")
-        print("       python3 kb_search.py -s <query>   (semantic search)")
+        print("Usage: python3 search/kb_search.py <keyword>")
+        print("       python3 search/kb_search.py -s <query>   (semantic search)")
         sys.exit(1)
 
     if sys.argv[1] == "-s" and len(sys.argv) >= 3:

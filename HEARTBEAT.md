@@ -12,7 +12,7 @@ Run: `ls ~/.openclaw/agents/main/sessions/*.lock 2>/dev/null`
 - If locks found → check if PID is still running (`ps -p <pid>`)
 - If PID dead → remove stale lock file
 - If PID alive (e.g. heartbeat node process) → keep lock, it's legitimate
-- Run: `python3 /opt/xiaonai/session_cleaner.py --dry-run`
+- Run: `python3 /opt/xiaonai/admin/session_cleaner.py --dry-run`
 - If >3 sessions flagged → run cleaner for real
 
 ### 3. Message Flow Check
@@ -46,4 +46,4 @@ Run: `df -h / | tail -1` and `free -h | grep Mem`
 - Check `~/self-improving/memory.md` line count (target <100)
 - Move entries unused for 30+ days to `~/self-improving/archive/`
 - Verify `xiaonai_memory.py` data intact (`ls /opt/xiaonai/data/memory/users/ | wc -l` users)
-- Verify `session_cleaner.py` exists and is runnable (`python3 /opt/xiaonai/session_cleaner.py --dry-run; echo EXIT:$?`)
+- Verify `session_cleaner.py` exists and is runnable (`python3 /opt/xiaonai/admin/session_cleaner.py --dry-run; echo EXIT:$?`)

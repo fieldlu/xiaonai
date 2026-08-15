@@ -39,35 +39,35 @@
 
 ### campus_daily 故障处理
 - campus_daily failed: 没有错误信息 -> 检查 campus_search.py 的 proxy 配置
-- 手动跑 python3 /opt/xiaonai/campus_daily.py 看真实报错
+- 手动跑 python3 /opt/xiaonai/campus/campus_daily.py 看真实报错
 
 ---
 
 ## 工具详细说明
 
 ### 0. 录取分数 score_query
-python3 /opt/xiaonai/score_query.py list
-python3 /opt/xiaonai/score_query.py 广西 材料 2025 --score 595
+python3 /opt/xiaonai/search/score_query.py list
+python3 /opt/xiaonai/search/score_query.py 广西 材料 2025 --score 595
 问分数/录取/专业时，**必须**先用这个工具。
 
 ### 1. 学术论文搜索 scholar_search（9源并发）
-python3 /opt/xiaonai/scholar_search.py search 关键词 --rows 5
+python3 /opt/xiaonai/search/scholar_search.py search 关键词 --rows 5
 覆盖: Semantic Scholar, OpenAlex, CrossRef, PubMed, arXiv, CORE, Europe PMC, DOAJ, dblp
 **问论文/文献/研究时必须用这个工具，禁止凭训练语料编造论文**
 
 ### 2. 知识库 kb_manage
-python3 /opt/xiaonai/kb_manage.py search 关键词
-python3 /opt/xiaonai/kb_manage.py add 主题 内容
-python3 /opt/xiaonai/kb_manage.py view 主题
+python3 /opt/xiaonai/search/kb_manage.py search 关键词
+python3 /opt/xiaonai/search/kb_manage.py add 主题 内容
+python3 /opt/xiaonai/search/kb_manage.py view 主题
 
 ### 3. 校园通知 campus_search
-python3 /opt/xiaonai/campus_search.py 关键词
+python3 /opt/xiaonai/campus/campus_search.py 关键词
 
 ### 4. 校内链接 campus_fetch
-python3 /opt/xiaonai/campus_fetch.py http://i.whut.edu.cn/...
+python3 /opt/xiaonai/campus/campus_fetch.py http://i.whut.edu.cn/...
 
 ### 5. 资源站 resource_search
-python3 /opt/xiaonai/resource_search.py 关键词
+python3 /opt/xiaonai/search/resource_search.py 关键词
 
 ### 6. 网页搜索 searxng
 内置在 smart_search 中自动触发。通过 localhost:8899 代理。
@@ -80,42 +80,42 @@ python3 /opt/xiaonai/resource_search.py 关键词
 
 ### 8. 群配置 admin_group_control
 查看配置（群类型 + 全部订阅状态；订阅相关问题一律先跑这条）:
-python3 /opt/xiaonai/admin_group_control.py show_config
+python3 /opt/xiaonai/admin/admin_group_control.py show_config
 群类型增删（5 类：class_group 需被@ / chat_group 不需@ / normal_group / mute_group 禁言 / blacklist 黑名单）:
-python3 /opt/xiaonai/admin_group_control.py add_class_group 群号
-python3 /opt/xiaonai/admin_group_control.py remove_class_group 群号
+python3 /opt/xiaonai/admin/admin_group_control.py add_class_group 群号
+python3 /opt/xiaonai/admin/admin_group_control.py remove_class_group 群号
 （add_ / remove_ 后面换成 chat_group、normal_group、mute_group、blacklist 用法相同）
 订阅增删（必须写明确的群号，不能写"当前群"）:
-python3 /opt/xiaonai/admin_group_control.py subscribe 群号 weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all
-python3 /opt/xiaonai/admin_group_control.py unsubscribe 群号 同上
+python3 /opt/xiaonai/admin/admin_group_control.py subscribe 群号 weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all
+python3 /opt/xiaonai/admin/admin_group_control.py unsubscribe 群号 同上
 
 ### 9. 管理命令 admin_cli
-python3 /opt/xiaonai/admin_cli.py status
-python3 /opt/xiaonai/admin_cli.py diag
-python3 /opt/xiaonai/admin_cli.py restart qq|bridge|scheduler|searxng|openclaw|all
-python3 /opt/xiaonai/admin_cli.py cron list|add|rm|run
+python3 /opt/xiaonai/admin/admin_cli.py status
+python3 /opt/xiaonai/admin/admin_cli.py diag
+python3 /opt/xiaonai/admin/admin_cli.py restart qq|bridge|scheduler|searxng|openclaw|all
+python3 /opt/xiaonai/admin/admin_cli.py cron list|add|rm|run
 也可以直接用 systemd 重启（xiaonai-* 是 root 系统单元，必须 sudo）:
 sudo systemctl restart xiaonai-bridge  （另有 xiaonai-qq / xiaonai-scheduler / xiaonai-consult / xiaonai-http-proxy）
 systemctl --user restart openclaw-gateway  （openclaw-gateway 和 mimo-proxy 是用户单元，不要加 sudo）
 会话清理（cron 每 5 分钟自动跑，一般不用手动）:
-python3 /opt/xiaonai/session_cleaner_v2.py --force
+python3 /opt/xiaonai/admin/session_cleaner_v2.py --force
 注意: session_cleaner.py（v1）是 13 行空壳，已废弃，别用。
 
 ### 10. 考试倒计时 exam_countdown
-python3 /opt/xiaonai/exam_countdown.py add 考试名 YYYY-MM-DD
-python3 /opt/xiaonai/exam_countdown.py days 考试名
+python3 /opt/xiaonai/admin/exam_countdown.py add 考试名 YYYY-MM-DD
+python3 /opt/xiaonai/admin/exam_countdown.py days 考试名
 
 ### 11. 闹钟 alarm_manager
-python3 /opt/xiaonai/alarm_manager.py set 08:00 内容
+python3 /opt/xiaonai/admin/alarm_manager.py set 08:00 内容
 
 ### 12. 抽签 lucky_draw
-python3 /opt/xiaonai/lucky_draw_cli.py 群号 [人数]
+群内命令触发（无需 CLI）：发「抽签」「抽奖 3」「抽签 2 排除班长」
 
 ### 13. 文件读写 xiaonai_doc_tools
-python3 /opt/xiaonai/xiaonai_doc_tools_v2.py read 路径
+python3 /opt/xiaonai/tools/xiaonai_doc_tools_v2.py read 路径
 
-### 14. QQ消息发送 send_qq_msg
-python3 /opt/xiaonai/send_qq_msg.py --group 群号 --message 内容
+### 14. QQ消息发送
+发消息走对话工具 admin_send_message（管理员），无需独立 CLI
 
 ---
 

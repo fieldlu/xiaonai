@@ -27,7 +27,7 @@ KB.joinpath('index.json').write_bytes(data.encode('utf-8', errors='replace'))
 print('1. index.json: %d files' % len(topics))
 
 # 2. chunked semantic (kb_semantic format, npz+pkl consistent)
-sys.path.insert(0, '/opt/xiaonai')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kb_semantic
 kb_semantic.build_index()
 

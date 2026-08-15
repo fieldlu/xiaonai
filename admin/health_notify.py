@@ -10,9 +10,9 @@ the block window grows with each repeat (dedup * count, capped at 4x) so a
 persistent problem re-notifies on an escalating cadence instead of every run.
 
 Usage:
-  python3 health_notify.py report "<text>" [--key K] [--dedup N] [--group GID]
-  python3 health_notify.py daily
-  python3 health_notify.py test
+  python3 admin/health_notify.py report "<text>" [--key K] [--dedup N] [--group GID]
+  python3 admin/health_notify.py daily
+  python3 admin/health_notify.py test
 """
 import json, os, sys, time, hashlib, urllib.request, re
 from datetime import datetime, timezone, timedelta

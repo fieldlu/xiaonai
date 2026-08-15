@@ -2,11 +2,11 @@
 """One-shot timed message queue for QQ bot.
 Managed via CLI, consumed by scheduler_v5.py.
 Usage:
-  python3 timed_msg.py add --group CLASS_GROUP_PLACEHOLDER --at "2026-06-02 19:00" --msg "Hello"
-  python3 timed_msg.py add --user 123456 --at "2026-06-02 19:00" --msg "Hello"
-  python3 timed_msg.py list
-  python3 timed_msg.py rm <id>
-  python3 timed_msg.py pending   # Show unsent + due
+  python3 admin/timed_msg.py add --group CLASS_GROUP_PLACEHOLDER --at "2026-06-02 19:00" --msg "Hello"
+  python3 admin/timed_msg.py add --user 123456 --at "2026-06-02 19:00" --msg "Hello"
+  python3 admin/timed_msg.py list
+  python3 admin/timed_msg.py rm <id>
+  python3 admin/timed_msg.py pending   # Show unsent + due
 """
 import sys, json, uuid, argparse
 from datetime import datetime, timedelta

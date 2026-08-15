@@ -557,7 +557,7 @@ async def fetch_campus_daily():
     for _attempt in range(3):
         try:
             proc = await asyncio.create_subprocess_exec(
-                'python3', '/opt/xiaonai/campus_daily.py', '--today',
+                'python3', '/opt/xiaonai/campus/campus_daily.py', '--today',
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -607,7 +607,7 @@ async def exam_countdown_push(ws_ref, cfg):
     except Exception:
         return
     try:
-        r = _sp.run(["python3", "/opt/xiaonai/exam_countdown.py", "push"],
+        r = _sp.run(["python3", "/opt/xiaonai/admin/exam_countdown.py", "push"],
                     capture_output=True, text=True, timeout=15)
         out = r.stdout or ""
     except Exception as e:
@@ -621,7 +621,7 @@ async def exam_countdown_push(ws_ref, cfg):
             for gid in _groups:
                 await send_with_retry(ws_ref, gid, msg.strip())
     try:
-        _sp.run(["python3", "/opt/xiaonai/exam_countdown.py", "archive"],
+        _sp.run(["python3", "/opt/xiaonai/admin/exam_countdown.py", "archive"],
                 capture_output=True, timeout=10)
     except Exception:
         pass

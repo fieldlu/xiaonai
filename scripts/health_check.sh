@@ -258,7 +258,7 @@ SELF_OK="not-run"
 SELF_SUMMARY=""
 if [ "$PROBLEM" -eq 1 ] || [ -n "$SLOT" ]; then
   # full probe (L1 NapCat + L3 agent) so failures can be diagnosed AND fixed
-  SELF_JSON="$(python3 /opt/xiaonai/self_test.py --full 2>/dev/null)"
+  SELF_JSON="$(python3 /opt/xiaonai/admin/self_test.py --full 2>/dev/null)"
   if echo "$SELF_JSON" | grep -q '"ok": true'; then
     SELF_OK="pass"
   else
@@ -288,7 +288,7 @@ if [ "$PROBLEM" -eq 1 ] || [ -n "$SLOT" ]; then
     SELF_OK="fail"
     for _i in 1 2 3; do
       sleep 10
-      SELF_JSON2="$(python3 /opt/xiaonai/self_test.py --full 2>/dev/null)"
+      SELF_JSON2="$(python3 /opt/xiaonai/admin/self_test.py --full 2>/dev/null)"
       if echo "$SELF_JSON2" | grep -q '"ok": true'; then
         SELF_OK="fixed"
         SELF_SUMMARY="$(echo "$SELF_JSON2" | grep -o '"summary": "[^"]*"' | head -1 | sed 's/.*: "//;s/"$//')"
@@ -323,19 +323,19 @@ NOTIFY_MSG="${NOTIFY_MSG}\n🧪 自检: ${SELF_SUMMARY:-未触发}"
 
 if [ -n "$SLOT" ]; then
   # scheduled self-test -> always report to admin once per slot per day
-  python3 /opt/xiaonai/health_notify.py report \
+  python3 /opt/xiaonai/admin/health_notify.py report \
     "$(printf '%b\n' "${NOTIFY_MSG}" "磁盘${DISK_USED}% · 内存${MEM_AVAIL}MB")" \
     --key "sched-$(date +%Y%m%d)-${SLOT}" --dedup 1440 >>"$LOG" 2>&1 || true
 elif [ "$PROBLEM" -eq 1 ]; then
   # reactive -> report while problems persist (dedup 55min, escalating)
-  python3 /opt/xiaonai/health_notify.py report \
+  python3 /opt/xiaonai/admin/health_notify.py report \
     "$(printf '%b\n' "${NOTIFY_MSG}" "磁盘${DISK_USED}% · 内存${MEM_AVAIL}MB")" \
     --key "run-$(date +%Y%m%d)" --dedup 55 >>"$LOG" 2>&1 || true
 fi
 
 # ---------- 13. daily digest (~21:30, once/day) ----------
 if [ "$HM" -ge 2130 ] && [ "$HM" -lt 2145 ]; then
-  python3 /opt/xiaonai/health_notify.py daily >>"$LOG" 2>&1 || true
+  python3 /opt/xiaonai/admin/health_notify.py daily >>"$LOG" 2>&1 || true
 fi
 
 # ---------- 14. publish machine-readable state ----------

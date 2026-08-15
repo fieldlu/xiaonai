@@ -4,10 +4,10 @@
 与知识库交叉校验，冲突时以知识库为准。
 
 Usage:
-  python3 zs_whut_search.py search <keyword>     # 全站搜索
-  python3 zs_whut_search.py list [page]           # 通知公告列表
-  python3 zs_whut_search.py read <path>           # 阅读全文
-  python3 zs_whut_search.py verify <keyword>      # 搜索+校验知识库
+  python3 search/zs_whut_search.py search <keyword>     # 全站搜索
+  python3 search/zs_whut_search.py list [page]           # 通知公告列表
+  python3 search/zs_whut_search.py read <path>           # 阅读全文
+  python3 search/zs_whut_search.py verify <keyword>      # 搜索+校验知识库
 """
 import sys, re, os, urllib.request, html as html_mod
 from urllib.parse import urljoin

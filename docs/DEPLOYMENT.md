@@ -95,8 +95,8 @@ vim .env   # 填入 API key / QQ 号
 # 把你的知识文档放入 data/knowledge/ 目录（.md 格式）
 # 详细见 docs/KNOWLEDGE-BASE-GUIDE.md
 
-python3 rebuild_kb_index.py   # 构建 BM25 + 语义索引
-python3 smart_search.py "测试查询"  # 验证
+python3 search/rebuild_kb_index.py   # 构建 BM25 + 语义索引
+python3 search/smart_search.py "测试查询"  # 验证
 ```
 
 ### 8. 启动
@@ -188,7 +188,7 @@ sudo systemctl enable --now xiaonai-bridge xiaonai-scheduler
 ### 知识库检索不到
 
 - 确认 `data/knowledge/` 有 `.md` 文件
-- 重新 `python3 rebuild_kb_index.py`
+- 重新 `python3 search/rebuild_kb_index.py`
 
 ### 定时推送没发
 

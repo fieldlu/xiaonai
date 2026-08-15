@@ -67,20 +67,20 @@ A: 成绩单、获奖证明...
 
 ```bash
 # 全量重建三套索引（BM25 + semantic + index）
-python3 rebuild_kb_index.py
+python3 search/rebuild_kb_index.py
 
 # 只重建 BM25
 python3 -c "import kb_manage; kb_manage._bm25_build()"
 
 # 只重建语义索引
-python3 kb_semantic.py build
+python3 search/kb_semantic.py build
 ```
 
 ## 四、测试检索
 
 ```bash
 # 直接搜索
-python3 smart_search.py "奖学金申请条件"
+python3 search/smart_search.py "奖学金申请条件"
 
 # 通过完整对话链路（含 MiMo 改写）
 # 在群里问："我们学校的奖学金怎么申请"
@@ -130,11 +130,11 @@ python3 smart_search.py "奖学金申请条件"
 ## 七、知识库维护命令
 
 ```bash
-python3 kb_manage.py list                  # 列出所有条目
-python3 kb_manage.py view <主题>           # 查看条目
-python3 kb_manage.py add <主题> <内容>     # 添加
-python3 kb_manage.py update <主题> <内容>  # 更新
-python3 kb_manage.py delete <主题>         # 删除
-python3 kb_manage.py import <文件> [主题]  # 导入 docx/pdf/xlsx/txt
-python3 rebuild_kb_index.py                # 重建索引
+python3 search/kb_manage.py list                  # 列出所有条目
+python3 search/kb_manage.py view <主题>           # 查看条目
+python3 search/kb_manage.py add <主题> <内容>     # 添加
+python3 search/kb_manage.py update <主题> <内容>  # 更新
+python3 search/kb_manage.py delete <主题>         # 删除
+python3 search/kb_manage.py import <文件> [主题]  # 导入 docx/pdf/xlsx/txt
+python3 search/rebuild_kb_index.py                # 重建索引
 ```

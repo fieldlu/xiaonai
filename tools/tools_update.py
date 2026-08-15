@@ -8,14 +8,14 @@ priority_section = """## 信息检索优先级 —— 最高铁律
 当用户提问需要查找资料/信息/规定/通知时，必须按以下顺序检索，前一步找到答案就不再继续：
 
 ### 步骤1: 本地知识库 (always first)
-python3 /opt/xiaonai/kb_search.py "关键词"
+python3 /opt/xiaonai/search/kb_search.py "关键词"
   - 知识库位置: /opt/xiaonai/data/knowledge/ (150+ WHUT文档)
   - 如果kb_search找到结果，直接引用，不需要再查WebVPN或网页
   - 未找到时才进入步骤2
 
 ### 步骤2: WebVPN校内通知 (仅步骤1未找到时)
-python3 /opt/xiaonai/campus_search.py "关键词"
-  - 如果失败或超时，先运行 python3 /opt/xiaonai/webvpn_rsa_login.py 刷新ticket
+python3 /opt/xiaonai/campus/campus_search.py "关键词"
+  - 如果失败或超时，先运行 python3 /opt/xiaonai/campus/webvpn_rsa_login.py 刷新ticket
   - 重试 campus_search.py
   - 如果还不通，进入步骤3
 

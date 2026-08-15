@@ -2,19 +2,19 @@
 """CLI wrapper for admin_group_control — usable by OpenClaw agent via exec.
 
 Usage:
-  python3 admin_group_control.py add_class_group CADRE_GROUP_PLACEHOLDER
-  python3 admin_group_control.py add_chat_group TEST_GROUP_PLACEHOLDER
-  python3 admin_group_control.py add_normal_group 123456789
-  python3 admin_group_control.py add_mute_group 123456789
-  python3 admin_group_control.py add_blacklist 123456789
-  python3 admin_group_control.py remove_class_group CADRE_GROUP_PLACEHOLDER
-  python3 admin_group_control.py remove_chat_group TEST_GROUP_PLACEHOLDER
-  python3 admin_group_control.py remove_normal_group 123456789
-  python3 admin_group_control.py remove_mute_group 123456789
-  python3 admin_group_control.py remove_blacklist 123456789
-  python3 admin_group_control.py show_config
-  python3 admin_group_control.py subscribe 群号 [weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all]
-  python3 admin_group_control.py unsubscribe 群号 [weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all]
+  python3 admin/admin_group_control.py add_class_group CADRE_GROUP_PLACEHOLDER
+  python3 admin/admin_group_control.py add_chat_group TEST_GROUP_PLACEHOLDER
+  python3 admin/admin_group_control.py add_normal_group 123456789
+  python3 admin/admin_group_control.py add_mute_group 123456789
+  python3 admin/admin_group_control.py add_blacklist 123456789
+  python3 admin/admin_group_control.py remove_class_group CADRE_GROUP_PLACEHOLDER
+  python3 admin/admin_group_control.py remove_chat_group TEST_GROUP_PLACEHOLDER
+  python3 admin/admin_group_control.py remove_normal_group 123456789
+  python3 admin/admin_group_control.py remove_mute_group 123456789
+  python3 admin/admin_group_control.py remove_blacklist 123456789
+  python3 admin/admin_group_control.py show_config
+  python3 admin/admin_group_control.py subscribe 群号 [weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all]
+  python3 admin/admin_group_control.py unsubscribe 群号 [weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all]
 
 Each add_* command removes the group from all other lists (cross-list dedup).
 Auto-reloads bridge policy after each change.
