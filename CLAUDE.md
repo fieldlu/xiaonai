@@ -169,6 +169,23 @@ bash scripts/scan_secrets.sh
 9. **`searxng_proxy.py` 单线程**且绑定 `127.0.0.1:8899`，smart_search 的网页源依赖它运行。
 10. **根 `AGENTS.md` / `SOUL.md` / `TOOLS.md` 是运行时人格数据**，不是开发文档，不要改写（除非任务明确是调机器人人格）。
 
+### 10.1 生产环境已知问题（来自运维手册 §10，08-15 状态）
+
+| # | 问题 | 状态 | 规避 |
+|---|------|------|------|
+| 1 | **OpenCode 响应串台**（服务端缓存命中异常，`cacheRead` 异常大） | 已定位、无法本地根治 | 偶发答非所问；本地已防御最恶劣后果（死循环/英文泄漏/空返回） |
+| 2 | **死循环锁死**（串台英文思考 → MiMo 反复 `exec` 搜知识库 → 无限循环） | ✅ 已根治 | SOUL/AGENTS 禁止 exec 搜知识库；call_openclaw 降超时 90s + 重试换 prompt 内容 + 英文推理检测 |
+| 3 | **英文推理泄漏**（`strip_thinking_leak` 起始词不全） | ✅ 已修复 | `_EN_LEAK_RE` 已补 `The admin`/`The knowledge base` 等起始词 |
+| 4 | **cleaned-to-empty**（清洗后空回复直接兜底） | ✅ 已修复 | 空回复重试一次 agent（换 session key + 中文提示） |
+| 5 | **MiMo 偶发空返回**（vision 静默空 content） | ✅ 已规避 | 识图空返回重试一次；连续 3 次触发熔断 |
+| 6 | **MiMo thinking 吃 max_tokens** | ✅ 已规避 | 必须 `thinking:disabled`（mimo-proxy 强制）或 max_tokens≥2000 |
+| 7 | **WARP 内存泄漏/重启窗口** | ✅ 已根治 | 升级 2026.6 + health_check 内存 guard（>500MB 按需重启）；重启后代理需几十秒重建，campus 抓取有 3 次重试吸收 |
+| 8 | **scheduler 崩溃循环（历史）** | ✅ 已根治 | `load_state` 补 failures 字段 + GONE 群处理修正 |
+| 9 | **scheduler 双日志** | ✅ 已根治 | `logs/scheduler.log` 唯一源（RotatingFileHandler）；`/tmp` 仅崩溃栈 |
+| 10 | **引号断句**（回复被换行劈开成对引号） | ✅ 已修复 | `_has_unclosed_quote` 检测未闭合引号并合并回上一行 |
+
+> 完整变更记录（#1-#42）见运维手册 §11；本仓库代码已包含全部修复。
+
 ## 11. 完成标准（Definition of Done）
 
 - [ ] 改动最小化，只涉及任务范围

@@ -92,7 +92,10 @@ WEBVPN_PROXY=http://127.0.0.1:40000
 
 **功能详解**
 - 灵魂功能。统一 LLM 客户端（`src/llm/client.py`）：OpenAI 兼容 `AsyncOpenAI`，模型**固定 `mimo-v2.5`**，自动拼接 ①系统人格（SYSTEM_PROMPT，内置铁律：纯文字无 Markdown、禁表格、短聊 2-3 句、称呼一律用"ta"、跨群隐私隔离等）②小奈情绪上下文 ③知识库上下文（启动时加载 `data/knowledge/index.json` + 各 `.md`）。
-- 支持 function calling（38 个工具，见第二章）；`max_tokens` 默认 8192；请求超时 25s。
+- **消息流水线**（bridge，生产实测）：NapCat WS → BATCH 合并（0.5s 去抖 + 晚加入 + 二次晚加入重生成）→ MiMo 识图（后台任务 + 占位符）→ 120s 去重 → 群静默检测（class/normal 需 @）→ 安全过滤 → 工具路由注入（9 类，见第二章）→ `call_openclaw`（openclaw agent，重试 4 次 / 90s 超时）→ 清洗（strip_markdown → 脱敏 → 去思维链）→ 分段发送（引号未闭合自动合并）。
+- **引用消息识别**：用户引用消息问小奈时，NapCat 只带被引用消息 id → bridge 用 `get_msg` API 按 id 拉取被引用内容。
+- **防死循环/串台防御**（08-15 起）：SOUL/AGENTS 禁止 `exec` 反复搜知识库；call_openclaw 超时 240→90s、重试换 prompt 内容（避开服务端坏缓存）、英文推理检测重试；cleaned-to-empty 重试一次。
+- 支持 function calling（38 个工具定义，见第二章）；`max_tokens` 默认 8192；请求超时 25s。
 - 返回 `{content, reasoning_content(思维链), tool_calls}`，输出自动清洗 Markdown 符号。
 
 **配置方法**
@@ -112,11 +115,12 @@ MIMO_BASE_URL=https://opencode.ai/zen/go/v1   # 可换任意 OpenAI 兼容端点
 ### 2. 图片识图 / OCR 🖼
 
 **功能详解**
-- 工具 `ocr_image`（tools_impl L647-742）：**MiMo 视觉优先**（图片 base64 内联，max_tokens 2000，超时 60s）→ 失败回退本地 **Tesseract**（`-l chi_sim+eng --oem 1`，超时 30s）。
+- **对话识图（主链路，bridge `_describe_image_with_mimo`）**：MiMo V2.5 **原生多模态**（图片转 base64 内联，thinking disabled）。防空返回——MiMo 偶发静默返回空 content（无错误）→ **自动重试一次**（实测同图重发成功）；连续 3 次失败触发**熔断**（禁 5 分钟，期间识图降级、消息照常流转）。识别结果以女大学生口吻自然转述（非百科腔）。
+- **工具 `ocr_image`**（tools_impl L647-742）：MiMo 视觉优先（max_tokens 2000，超时 60s）→ 失败回退本地 **Tesseract**（`-l chi_sim+eng --oem 1`，超时 30s）。
 - 插件 `ocr_helper.py`：从消息中提取 `[CQ:image,...url=...]`（最多 3 张），下载（15s 超时）→ GIF 取首帧 / WebP 转 PNG / RGBA 白底合成 → OCR，结果 `\n---\n` 拼接，返回前 1500 字符。
 
 **配置方法**
-- 需要 `MIMO_API_KEY`（视觉通道）。
+- 需要 `MIMO_API_KEY`（视觉通道，模型须支持图像输入）。
 - 本地回退需要系统装 Tesseract 中文包：
   ```bash
   sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim   # Debian/Ubuntu
@@ -132,7 +136,12 @@ MIMO_BASE_URL=https://opencode.ai/zen/go/v1   # 可换任意 OpenAI 兼容端点
 ### 3. 记忆系统 💾
 
 **功能详解**
-- **三层会话记忆**（`src/memory/store.py` v3）：好感度 + 事实记忆（去重保留 50 条，>25 条自动摘要，只留最新 15 条）+ 智能上下文（昵称/摘要/相关记忆≤8 条/好感档位/关系阶段/聊天统计注入 LLM）+ 情绪追踪（moods 保留 30 条）。
+- **运行记忆（OpenClaw 三层，实际生效）**：
+  1. ① 会话 session：`sessions/<uuid>.*` + `sessions.json` —— 很短，cron 每 5 分钟清理 idle>180s
+  2. ② resume 摘要：`agent/resume_<key>.json` + `memory/<key>.json` —— 长期 7 天，bridge 每条消息重新注入
+  3. ③ 长期记忆笔记：`workspace/memory/YYYY-MM-DD.md` —— agent 主动写（说「记住」时）
+  - ⚠️ **清除上下文 = 清 ①②**（`session_cleaner_v2.py --purge-session`）；③ 不属于会话上下文
+- **好感度/事实记忆**（`src/memory/store.py` v3 + `xiaonai_memory.py`，bridge 每条消息异步更新）：8 维好感度 + 事实记忆（去重保留 50 条，>25 条自动摘要，只留最新 15 条）+ 智能上下文（昵称/摘要/相关记忆≤8 条/好感档位/关系阶段/聊天统计注入 LLM）+ 情绪追踪（moods 保留 30 条）。
 - **被动观察器**（`passive_observer.py`）：本地约 25 条正则免费提取事实（通知/考试/身份/名字/位置/喜好/计划等，每条 ≤30 字最多 3 条）+ 高信息量消息进缓冲池（上限 40 条）**批量交 LLM（DeepSeek）提取**（60 分钟最多一次）；敏感内容（色情/自残/毒品/赌博）红线不提取；噪声过滤 L0-L7 级。
 - **四层记忆架构**（`src/memory/layers.py`）：L0 瞬态（内存 20 条）→ L1 短期（SQLite+FTS，带 importance）→ L2 长期 → L3 全局知识库（confidence 0-1 可调）；`search_all` 合并检索；L1 超 7 天可升迁 L2。
 - **用户大五人格**（`personality_engine.py`）：15 条正则推断 OCEAN 五维（±3/命中），>20 条消息后每 10 条向 50 回归 90%，生成人格上下文注入 LLM。
@@ -272,9 +281,14 @@ python3 admin/alarm_manager.py check      # 输出到期闹钟（由 proactive_c
 
 ---
 
-## 二、38 个对话工具完整清单
+## 二、工具清单（38 个 function-calling 定义 + 9 类对话路由）
 
-> 工具定义在 `src/llm/tools.py`（注入 LLM 做 function calling），实现在 `src/llm/tools_impl.py`（`TOOL_IMPL` 注册表）。分两类：**真实实现型**（直接返回内容）与**占位符协议型**（返回 `__前缀__:` 特殊字符串，由 bridge/ai_handler 消费执行）。
+> ⚠️ **两套工具体系，别混淆**：
+>
+> 1. **对话工具路由（实际生效，9 类）**：`bridge.py` 的 MiMo 路由器（`_route_tool_with_mimo`）——用户消息 → MiMo 分类 → 执行注入。工具：`plan`（招生计划）/ `score`（录取分数）/ `campus`（校园通知）/ `resource`（课件资料）/ `kb`（知识库）/ `exam`（考试倒计时，08-15 新增）/ `paper`（论文搜索，08-15 新增）/ `remind`（定时提醒）/ `none`（无需工具）。**这是对话时真正会触发的路由**。
+> 2. **function-calling 工具定义（38 个）**：`src/llm/tools.py` 的 `TOOLS` 列表 + `tools_impl.py` 的 `TOOL_IMPL` 注册表——OpenAI 格式函数定义，供 LLM 直接调用。分**真实实现型**（直接返回内容）与**占位符协议型**（返回 `__前缀__:` 特殊字符串，由 bridge/ai_handler 消费执行）。多数为管理员/内部能力，实际对话优先走上面的 9 类路由注入。
+
+**38 个 function-calling 工具清单**：
 
 | # | 工具名 | 用途 / 触发场景 | 类型 |
 |---|--------|----------------|------|
@@ -332,10 +346,13 @@ python3 -c "from src.llm.tools_impl import TOOL_IMPL; print(len(TOOL_IMPL))"  # 
 ### 10. 知识库问答 🧠
 
 **功能详解**
-- 核心检索链：**jieba BM25 关键词**（k1=1.5, b=0.75）→ 逐文件精确匹配 → 三轨模糊搜索（二元组重叠/滑动窗口 SequenceMatcher/标题 boost）→ 自动短词重试（2-4 字候选）。
-- 语义搜索（`kb_semantic.py`）：字符 2/3-gram + 英文词 TF-IDF，文档按 500 字符重叠分块，余弦相似度，阈值 0.025；每文档取最高分块。
+- **三层检索架构**（08-15 起）：
+  1. **MiMo 查询改写层**（`bridge.py _rewrite_kb_query`）：口语/同义/比喻问题 → MiMo（mimo-v2.5，thinking disabled，max_tokens=100）改写为 3-8 个检索关键词 → 交给 BM25。带独立熔断（3 次失败禁 5 分钟）+ 300s 缓存 + 精确术语跳过（培养方案/选课手册等文件名字面词已可命中则省一次 LLM）。示例：「体育分是谁打的」→ 改写「体育成绩,评分标准,任课教师」→ 命中《国家学生体质健康标准》（改写前召回英语听力等无关课程）。
+  2. **jieba BM25 关键词层**（k1=1.5, b=0.75）→ 逐文件精确匹配 → 三轨模糊搜索（二元组重叠/滑动窗口 SequenceMatcher/标题 boost）→ 自动短词重试（2-4 字候选）。
+  3. **语义层**（`kb_semantic.py`）：字符 2/3-gram + 英文词 TF-IDF，文档按 500 字符重叠分块，余弦相似度，阈值 0.025；每文档取最高分块。
 - 文档导入支持：`.txt/.md` 直读、`.docx`（python-docx → pandoc 回退）、`.pdf`（PyPDF2）、`.xlsx/.xls`（openpyxl 逐 sheet 转文本）。
 - `smart_search.py` 集成：7 源聚合加权（见第 14 节）。
+- 生产环境知识库规模参考：713 个 md 文件（选课/教师/培养方案/招生制度/新生攻略/竞赛等）。
 
 **配置方法**
 1. 建目录并放入 Markdown 文档：`data/knowledge/`
@@ -491,7 +508,7 @@ python3 search/scholar_search.py health          # 健康检查
 WHUT_USERNAME=学号
 WHUT_PASSWORD=密码
 WHUT_VPN_TICKET=            # 可选：预置 ticket 免登录
-WEBVPN_PROXY=http://127.0.0.1:40000   # 可选代理
+WEBVPN_PROXY=http://127.0.0.1:40000   # 可选代理（生产环境 = WARP :40000，武理 WebVPN 命脉，勿禁用）
 ```
 依赖 `cryptography`（RSA）与 WebVPN 可用性。
 
@@ -581,7 +598,10 @@ python3 search/resource_search.py --dirs
 - **GONE 群容错**：NapCat 返回"移出该群"→ 加入 GONE 列表当日不轰炸，但每周期仍试 1 次，成功自动恢复。
 - **发送可靠性**：echo 确认制（5s 超时）+ 失败重连重试（3 次）；WS 断开自动重连（10 次）；启动等 NapCat 最多 60×2s。
 - **PID 锁**：`data/scheduler.pid` 防双实例。
-- 日志：`logs/scheduler.log`（5MB×5 轮转）。
+- **日志（双文件，排查必看）**：
+  - `logs/scheduler.log` —— **唯一日志源**（RotatingFileHandler，5MB×5 自动轮转）
+  - `/tmp/scheduler.log` —— systemd 捕获的崩溃栈（仅异常时增长）
+  - ⚠️ 08-14 起已去掉 StreamHandler（不再写 stdout），排查以 `logs/scheduler.log` 为准
 
 **启动**
 ```bash
@@ -808,6 +828,24 @@ python3 admin/admin_group_control.py show_config               # 查看订阅明
 ---
 
 ## 六、运维管理
+
+### 31.5 生产服务清单（7 个 + WARP）
+
+> 生产环境共 **7 个服务**：5 个 root system 单元 + 2 个 user 单元。仓库自带 bridge/scheduler 两个单元（`scripts/`），其余按需创建：
+
+| 服务 | 单元类型 | 端口/端点 | 职责 |
+|------|---------|----------|------|
+| `xiaonai-qq` | system | NapCat :3000/:3001 | QQ 客户端（登录 + OneBot API + WS） |
+| `xiaonai-bridge` | system | :8080/:8081 | 消息桥接 + MiMo 工具路由 + 识图 |
+| `xiaonai-scheduler` | system | — | 定时订阅推送（天气/校园/地震/气象） |
+| `xiaonai-consult` | system | :8082 | 招生咨询 Web+API |
+| `xiaonai-http-proxy` | system | — | OneBot HTTP API 代理 |
+| `openclaw-gateway` | **user** | :18789 | AI Agent 引擎 |
+| `mimo-proxy` | **user** | :8898 | MiMo 代理（缓存/thinking 控制） |
+| `warp-svc` | system | :40000 | WebVPN 出口（武理校外访问命脉，勿禁用） |
+
+> ⚠️ 单元类型区分：`xiaonai-*` 是 root 系统单元（`sudo systemctl`）；`openclaw-gateway`/`mimo-proxy` 是用户单元（`systemctl --user`，不加 sudo）。
+> ⚠️ 模型链路：openclaw → `:8898`（mimo-proxy，强制 `thinking:disabled`）→ OpenCode Go 端点。
 
 ### 32. 运维 CLI 🛠
 
