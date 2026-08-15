@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Release: v0.0.1](https://img.shields.io/github/v/release/fieldlu/xiaonai?style=flat-square)](https://github.com/fieldlu/xiaonai/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
 [![NapCat](https://img.shields.io/badge/NapCat-OneBot%20v11-3E8E7E?style=flat-square)](https://napneko.github.io/)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Agent%20Engine-6C5CE7?style=flat-square)](https://openclaw.ai)
 [![MiMo](https://img.shields.io/badge/MiMo-V2.5%20Multimodal-FF6B6B?style=flat-square)](https://opencode.ai)
@@ -325,7 +325,9 @@ CI（GitHub Actions）自动执行：Ruff 代码检查 + 全量语法编译 + �
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 XiaoNai contributors
+[GNU GPL v3.0](LICENSE) © 2026 XiaoNai contributors
+
+> 本项目采用 **GPL-3.0** 开源协议：你可以自由使用、修改、分发，但**修改后的衍生作品也必须以 GPL-3.0 开源**（Copyleft）。详见 [LICENSE](LICENSE)。
 
 ---
 

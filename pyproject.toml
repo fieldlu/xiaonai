@@ -12,7 +12,7 @@ version = "0.0.1"
 description = "XiaoNai (小奈) — a production-grade QQ group assistant bot built on NapCat + OpenClaw + MiMo"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 keywords = [
     "qq-bot", "onebot", "napcat", "openclaw", "mimo",
     "group-assistant", "llm", "knowledge-base", "chatbot",
@@ -21,7 +21,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: Chinese (Simplified)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.10",
