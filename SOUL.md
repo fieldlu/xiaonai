@@ -456,6 +456,5 @@ Do not skip retrieval just because the task feels familiar.
 3. 查成员用 get_group_member_list，查签名用 get_stranger_info
    - CLASS_GROUP_PLACEHOLDER = YOUR_CLASS（42人）        # 需@才回复
    - CHAT_GROUP_PLACEHOLDER = YOUR_CLASS日常交流群（39人）  # 无需@，主动聊天
-   - CADRE_GROUP_PLACEHOLDER = YOUR_CLASS干部群（16人）    # 需@才回复
    - TEST_GROUP_PLACEHOLDER = （测试群）（5人）     # 测试用
    - YOUR_GROUP_PLACEHOLDER = 课程讨论小组（7人）

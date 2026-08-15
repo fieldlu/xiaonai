@@ -33,7 +33,7 @@
 grep -rl "ADMIN_QQ_PLACEHOLDER" . | xargs sed -i 's/ADMIN_QQ_PLACEHOLDER/你的QQ号/g'
 grep -rl "CLASS_GROUP_PLACEHOLDER" . | xargs sed -i 's/CLASS_GROUP_PLACEHOLDER/你的群号/g'
 # 同理替换 BOT_QQ_PLACEHOLDER / CHAT_GROUP_PLACEHOLDER / TEST_GROUP_PLACEHOLDER /
-#           CADRE_GROUP_PLACEHOLDER / YOUR_SCHOOL / YOUR_MAJOR ...
+#           YOUR_SCHOOL / YOUR_MAJOR ...
 ```
 
 完整清单见 [附录 A](#附录-a占位符完整清单)。
@@ -985,7 +985,6 @@ python3 tools/xiaonai_doc_tools_v2.py convert <输入> <输出>
 | `BOT_QQ_PLACEHOLDER` | bridge.py、lucky_draw.py、ai_handler.py | 机器人 QQ |
 | `CLASS_GROUP_PLACEHOLDER` | ai_handler.py、scheduler_v5.py（默认配置）、client.py | 需 @ 才回复的群号（如班级群） |
 | `CHAT_GROUP_PLACEHOLDER` | personality.py、ai_handler.py、client.py | 无需 @ 主动聊天的群号（如日常交流群） |
-| `CADRE_GROUP_PLACEHOLDER` | admin_group_control.py、client.py | 干部群号（通常归 class_groups，需 @） |
 | `TEST_GROUP_PLACEHOLDER` | admin_group_control.py、health_notify.py、timed_msg.py、proactive_check.py | 测试群号 |
 | `YOUR_SCHOOL` / `YOUR_COLLEGE` / `YOUR_MAJOR` / `YOUR_CAMPUS` | client.py、personality.py、consultation_server.py | 学校/学院/专业 |
 | `YOUR_CONTACTS_FILE.md` | notify_classmate.py | 通讯录文件名 |
