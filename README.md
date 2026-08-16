@@ -7,7 +7,7 @@
 **🏫 武汉理工大学（WHUT）定制版** —— 深度对接 whut.edu.cn 校园系统（CAS 登录 / WebVPN / 招生 API / 校园通知）
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Release](https://img.shields.io/badge/Release-v0.0.3-blue?style=flat-square)](https://gitee.com/fieldlu/xiaonai/releases)
+[![Release](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgitee.com%2Fapi%2Fv5%2Frepos%2Ffieldlu%2Fxiaonai%2Freleases%2Flatest&query=tag_name&label=Release&style=flat-square)](https://gitee.com/fieldlu/xiaonai/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
 [![NapCat](https://img.shields.io/badge/NapCat-OneBot%20v11-3E8E7E?style=flat-square)](https://napneko.github.io/)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Agent%20Engine-6C5CE7?style=flat-square)](https://openclaw.ai)
@@ -224,6 +224,38 @@ grep -rl "ADMIN_QQ_PLACEHOLDER" . | xargs sed -i 's/ADMIN_QQ_PLACEHOLDER/你的Q
 ```
 
 > ⚠️ **安全提醒**：发布前请运行 `scripts/scan_secrets.sh`（或 CI 中的 secret 扫描），确认无 API Key / 真实账号信息入库。
+
+## 👥 群配置（回复策略）
+
+小奈在群里的回复行为按**群类型**区分（不是按群的"身份"，而是按小奈在群里的行为）。配置双写 `~/.openclaw/agents/main/agent/group_config.json` 与 `data/group_config.json`，改后热加载 bridge（`POST :8081/reload`）：
+
+| 配置键 | 小奈的回复策略 | 管理命令 |
+|--------|---------------|---------|
+| `class_groups` | **需 @ 才回复**（被 @ / 被叫"小奈" / 发图片）——正式群/班级群 | `add_class_group 群号` |
+| `normal_groups` | **需 @ 才回复**，与 class_groups 行为完全一致 | `add_normal_group 群号` |
+| `chat_groups` | **无需 @，主动聊天**——日常交流群 | `add_chat_group 群号` |
+| `blacklist` | **按用户 QQ 拉黑**（不是群），被拉黑者私聊/群聊一律不回 | `add_blacklist QQ号` |
+| `mute_groups` | ⚠️ **不生效**：bridge 不读取此键，勿用 | `add_mute_group 群号` |
+
+> ⚠️ **未配置的群：小奈完全忽略**（不回复，连 @ 也不回）。机器人被拉入新群会自动加入 `normal_groups`。
+> 订阅推送不受群类型影响；推送目标在 `data/scheduler_config.json` 单独配置。
+
+```bash
+python3 admin/admin_group_control.py show_config        # 查看全部群类型 + 订阅状态（订阅问题先跑这条）
+python3 admin/admin_group_control.py add_class_group 群号  # add_/remove_ 可换 chat/normal/blacklist
+python3 admin/admin_group_control.py subscribe 群号 weather|news|earthquake|weather_warning|campus_daily|exam_countdown|all
+```
+
+数据存储（`data/group_config.json`，5 键）：
+```json
+{
+  "class_groups": [123456789],
+  "chat_groups": [123456790],
+  "normal_groups": [],
+  "mute_groups": [],
+  "blacklist": []
+}
+```
 
 ---
 
