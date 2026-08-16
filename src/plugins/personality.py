@@ -15,7 +15,8 @@ from nonebot_plugin_apscheduler import scheduler  # noqa: E402
 DATA_DIR = Path(os.environ.get("QQBOT_DATA_DIR", "data"))
 
 ADMIN_QQ = ADMIN_QQ_PLACEHOLDER
-CLASS_GROUP = CHAT_GROUP_PLACEHOLDER
+# 群冒泡只发闲聊群（chat_groups）；班级群有导员/班主任，不主动冒泡
+BUBBLE_GROUP = CHAT_GROUP_PLACEHOLDER
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
@@ -273,7 +274,7 @@ async def run_afternoon_share():
 
 
 async def run_group_bubble():
-    """每天随机冒泡1次（9:00-21:00间）。CHAT_GROUP_PLACEHOLDER 闲聊群不主动冒泡，仅在其他群。"""
+    """每天随机冒泡1次（9:00-21:00间）。只向闲聊群（CHAT_GROUP_PLACEHOLDER）冒泡；班级群（CLASS_GROUP_PLACEHOLDER）不主动冒泡。"""
     from src.memory.mood import get_mood_context
 
     mood_ctx = get_mood_context()
@@ -282,8 +283,8 @@ async def run_group_bubble():
     if hour < 9 or hour > 21:
         return
 
-    # CHAT_GROUP_PLACEHOLDER 闲聊群有导员和班主任，不主动冒泡，只在被 @ 时规矩回复
-    # 这里仅向非敏感群冒泡；如果只有 CLASS_GROUP_PLACEHOLDER 则跳过
+    # 班级群有导员和班主任，不主动冒泡，只在被 @ 时规矩回复
+    # 这里只向闲聊群冒泡；如果没配置闲聊群（CHAT_GROUP_PLACEHOLDER）则跳过
     prompt = (
         f"{mood_ctx}\n\n"
         f"现在是{now.strftime('%H:%M')}，你决定在群里说一句话。\n"
@@ -295,8 +296,8 @@ async def run_group_bubble():
     if msg:
         try:
             bot = get_bot()
-            await bot.send_group_msg(group_id=CLASS_GROUP, message=msg)
-            print(f"[personality] Group bubble sent to {CLASS_GROUP}")
+            await bot.send_group_msg(group_id=BUBBLE_GROUP, message=msg)
+            print(f"[personality] Group bubble sent to {BUBBLE_GROUP}")
         except Exception as e:
             print(f"[personality] Group bubble failed: {e}")
 
