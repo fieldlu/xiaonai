@@ -12,7 +12,7 @@
   - ai_handler.py 黑名单：原按 session_id（群消息=群号）判断 → 改为按用户 QQ 判断（与 bridge 一致，文档明示按用户拉黑）
   - ai_handler.py 未配置群：原「被动观察+条件回复」→ 完全忽略（与 bridge 主链路一致）
   - client.py 群配置提示词：测试群描述修正、黑名单传参改为 QQ 号
-  - SOUL.md 群清单：移除真实群名「」（敏感信息），描述对齐回复策略
+  - SOUL.md 群清单：移除真实群名（敏感信息），描述对齐回复策略
   - TOOLS.md 测试群描述：明确 test_group 是默认发送目标、运维告警走 admin 私信
   - scheduler_v5.py 默认订阅：news 默认关闭（原默认开启会向班级群推送）、补 daily_greetings 键
 
