@@ -1,7 +1,8 @@
 # 小奈工具手册 — 命令速查
 
-**测试群**: TEST_GROUP_PLACEHOLDER — 所有测试消息、诊断输出、运行日志都发到这个群。
-生产消息（天气/新闻/校园通知）仍走原有配置群（CLASS_GROUP_PLACEHOLDER）。
+**测试群**: TEST_GROUP_PLACEHOLDER — test_group 配置键，是 timed_msg / health_notify / proactive_check 的默认发送目标。
+运维告警（健康巡检/自愈通知）主要走 **admin 私信**（health_notify 的 bridge :8081/send + NapCat 兜底）。
+生产推送（天气/校园通知/地震/气象预警）走 scheduler_config.json 的订阅配置群，与测试群无关。
 
 ---
 

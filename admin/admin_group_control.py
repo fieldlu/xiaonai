@@ -10,11 +10,11 @@
 
 Usage:
   python3 admin/admin_group_control.py add_class_group 123456789
-  python3 admin/admin_group_control.py add_chat_group TEST_GROUP_PLACEHOLDER
+  python3 admin/admin_group_control.py add_chat_group 123456790
   python3 admin/admin_group_control.py add_normal_group 123456789
   python3 admin/admin_group_control.py add_blacklist 123456789
   python3 admin/admin_group_control.py remove_class_group 123456789
-  python3 admin/admin_group_control.py remove_chat_group TEST_GROUP_PLACEHOLDER
+  python3 admin/admin_group_control.py remove_chat_group 123456790
   python3 admin/admin_group_control.py remove_normal_group 123456789
   python3 admin/admin_group_control.py remove_blacklist 123456789
   python3 admin/admin_group_control.py show_config
