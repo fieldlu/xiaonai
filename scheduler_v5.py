@@ -43,11 +43,12 @@ check_pid_lock()
 
 DEFAULT_CONFIG = {
     "weather": {"enabled": True, "hour": 7, "groups": [CLASS_GROUP_PLACEHOLDER]},
-    "news": {"enabled": True, "hour": 18, "groups": [CLASS_GROUP_PLACEHOLDER]},
+    "news": {"enabled": False, "hour": 18, "groups": []},
     "earthquake": {"enabled": True, "interval_min": 0.5, "groups": [CLASS_GROUP_PLACEHOLDER], "min_magnitude": 4.0},
     "weather_warning": {"enabled": True, "interval_min": 10, "groups": [CLASS_GROUP_PLACEHOLDER]},
     "campus_daily": {"enabled": True, "interval_min": 2, "groups": [CLASS_GROUP_PLACEHOLDER]},
     "exam_countdown": {"enabled": True, "groups": []},
+    "daily_greetings": {"enabled": True, "groups": []},
 }
 
 EQ_CACHE = DATA / "eq_sched_cache.json"
