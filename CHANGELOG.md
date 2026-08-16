@@ -3,6 +3,19 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 与
 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.0.3] - 2026-08-15
+
+### 修复
+- **群分类/群管理描述与行为对齐**（对照 bridge.py 真实行为全面校对）：
+  - personality.py 群冒泡：CLASS_GROUP 变量取值与注释互相矛盾（变量名 CLASS 却取 CHAT 占位符、注释说闲聊群不冒泡）→ 改为 BUBBLE_GROUP = CHAT_GROUP_PLACEHOLDER，与 FEATURES-GUIDE「只发 chat_groups」一致
+  - ai_handler.py 群管理 action：原 add_class_group/normal/mute/chat 四个动作全写进 class_groups、remove_* 全写进 chat_groups → 改为每个动作各归各键
+  - ai_handler.py 黑名单：原按 session_id（群消息=群号）判断 → 改为按用户 QQ 判断（与 bridge 一致，文档明示按用户拉黑）
+  - ai_handler.py 未配置群：原「被动观察+条件回复」→ 完全忽略（与 bridge 主链路一致）
+  - client.py 群配置提示词：测试群描述修正、黑名单传参改为 QQ 号
+  - SOUL.md 群清单：移除真实群名「」（敏感信息），描述对齐回复策略
+  - TOOLS.md 测试群描述：明确 test_group 是默认发送目标、运维告警走 admin 私信
+  - scheduler_v5.py 默认订阅：news 默认关闭（原默认开启会向班级群推送）、补 daily_greetings 键
+
 ## [0.0.2] - 2026-08-15
 
 ### 新增
