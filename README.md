@@ -7,7 +7,7 @@
 **🏫 武汉理工大学（WHUT）定制版** —— 深度对接 whut.edu.cn 校园系统（CAS 登录 / WebVPN / 招生 API / 校园通知）
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Release](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgitee.com%2Fapi%2Fv5%2Frepos%2Ffieldlu%2Fxiaonai%2Freleases%2Flatest&query=tag_name&label=Release&style=flat-square)](https://gitee.com/fieldlu/xiaonai/releases)
+[![Release](https://img.shields.io/badge/Release-v0.0.3-blue?style=flat-square)](https://gitee.com/fieldlu/xiaonai/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
 [![NapCat](https://img.shields.io/badge/NapCat-OneBot%20v11-3E8E7E?style=flat-square)](https://napneko.github.io/)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Agent%20Engine-6C5CE7?style=flat-square)](https://openclaw.ai)
