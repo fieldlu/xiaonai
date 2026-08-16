@@ -2032,7 +2032,13 @@ async def handle_qq_message(ws, data):
                 _params = {"group_id": _tgt, "message": _remind_reply} if gid else {"user_id": _tgt, "message": _remind_reply}
                 await napcat_api(_act, _params, timeout=10)
             return
-    _cmd_data = await asyncio.to_thread(_inject_command_data, msg_for_agent, sname, uid, gid)
+    # 08-16: 工具注入/路由必须基于用户原始文字(_user_raw_text)，
+    # 不能基于带记忆/性格前缀的 msg_for_agent——前缀含「什么」「吗」等词会
+    # 污染 legacy is_q 正则（曾把图片后的「详细解释一下」误判为知识库查询，
+    # smart_search 注入无关「校园网管理规定」775 chars，致 agent 反问
+    # 「详细解释啥呀？」）。与 #43（识图描述污染提醒判断）同型：系统注入文本
+    # 不得参与用户意图判断。已实测前缀拼接后 is_q=True 误触发注入、用原始文字改为 is_q=False 不注入。
+    _cmd_data = await asyncio.to_thread(_inject_command_data, _user_raw_text, sname, uid, gid)
     if _cmd_data:
         msg_for_agent = _cmd_data + chr(10) + chr(10) + msg_for_agent
         log.info("INJECT: added data (%d chars)", len(_cmd_data))
