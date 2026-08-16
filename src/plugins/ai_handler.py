@@ -253,8 +253,8 @@ async def handle_ai(event: Event, msg: Message = EventMessage()):
         nickname = event.sender.card or event.sender.nickname or ""
 
         cfg = _load_group_config()
-        # ==== 黑名单：只旁观提取知识，绝不发消息 ====
-        if session_id in cfg.get("blacklist", []):
+        # ==== 黑名单：按用户 QQ 拉黑（不是群），被拉黑者消息一律不回 ====
+        if user_id in cfg.get("blacklist", []):
             mid = getattr(event, 'message_id', 0)
             _passive_observe(user_id, nickname, text, mid)
             return
@@ -291,23 +291,9 @@ async def handle_ai(event: Event, msg: Message = EventMessage()):
                 if _random.random() > 0.8:
                     return
                 _last_chat_reply = now_ts
-        # ==== 其他群：被动观察 + 条件回复 ====
+        # ==== 未配置的群：完全忽略（不回复，连 @ 也不回）— 与 bridge 主链路一致 ====
         else:
-            mid = getattr(event, 'message_id', 0)
-            _passive_observe(user_id, nickname, text, mid)
-
-            if not (event.is_tome() or "小奈" in text):
-                from src.memory.mood import record_interaction
-                record_interaction(user_id)
-                from src.plugins.personality import on_user_interaction
-                on_user_interaction(user_id)
-                try:
-                    data = memory_store._load_user(user_id)
-                    data["last_seen"] = datetime.now().isoformat()
-                    memory_store._save_user(user_id, data)
-                except Exception:
-                    pass
-                return
+            return
 
         text = re.sub(r"\[CQ:at,qq=\d+\]", "", text).strip()
         text = re.sub(r"^(小奈|机器人|bot)[,，：:\s]*", "", text, flags=re.I).strip()
@@ -1378,7 +1364,7 @@ async def run_conversation(history: list[dict], user_id: int = 0, nickname: str 
                         bl.append(gid)
                         cfg["blacklist"] = bl
                         _save_group_config(cfg)
-                        result = f"已将群 {gid} 加入黑名单。小奈会旁听并提取知识，但绝不发消息。"
+                        result = f"已将用户 {gid} 加入黑名单（按 QQ 拉黑，私聊/群聊一律不回）。"
                     else:
                         result = f"群 {gid} 已在黑名单中。"
                 elif action == "remove_blacklist" and value:
@@ -1388,10 +1374,10 @@ async def run_conversation(history: list[dict], user_id: int = 0, nickname: str 
                         bl.remove(gid)
                         cfg["blacklist"] = bl
                         _save_group_config(cfg)
-                        result = f"已将群 {gid} 从黑名单移除。"
+                        result = f"已将用户 {gid} 从黑名单移除。"
                     else:
-                        result = f"群 {gid} 不在黑名单中。"
-                elif action in ("add_class_group", "add_normal_group", "add_mute_group", "add_chat_group") and value:
+                        result = f"用户 {gid} 不在黑名单中。"
+                elif action == "add_class_group" and value:
                     gid = int(value)
                     cg = cfg.get("class_groups", [])
                     if gid not in cg:
@@ -1401,6 +1387,36 @@ async def run_conversation(history: list[dict], user_id: int = 0, nickname: str 
                         result = f"已将群 {gid} 设为班级群（仅 @小奈 回复）。"
                     else:
                         result = f"群 {gid} 已是班级群。"
+                elif action == "add_normal_group" and value:
+                    gid = int(value)
+                    ng = cfg.get("normal_groups", [])
+                    if gid not in ng:
+                        ng.append(gid)
+                        cfg["normal_groups"] = ng
+                        _save_group_config(cfg)
+                        result = f"已将群 {gid} 设为普通群（仅 @小奈 回复，行为同班级群）。"
+                    else:
+                        result = f"群 {gid} 已是普通群。"
+                elif action == "add_mute_group" and value:
+                    gid = int(value)
+                    mg = cfg.get("mute_groups", [])
+                    if gid not in mg:
+                        mg.append(gid)
+                        cfg["mute_groups"] = mg
+                        _save_group_config(cfg)
+                        result = f"已将群 {gid} 加入 mute_groups（⚠️ 不生效：bridge 不读取该键）。"
+                    else:
+                        result = f"群 {gid} 已在 mute_groups。"
+                elif action == "add_chat_group" and value:
+                    gid = int(value)
+                    cg = cfg.get("chat_groups", [])
+                    if gid not in cg:
+                        cg.append(gid)
+                        cfg["chat_groups"] = cg
+                        _save_group_config(cfg)
+                        result = f"已将群 {gid} 设为闲聊群，小奈会主动聊天~"
+                    else:
+                        result = f"群 {gid} 已是闲聊群。"
                 elif action == "remove_class_group" and value:
                     gid = int(value)
                     cg = cfg.get("class_groups", [])
@@ -1411,16 +1427,26 @@ async def run_conversation(history: list[dict], user_id: int = 0, nickname: str 
                         result = f"已将群 {gid} 从班级群移除。"
                     else:
                         result = f"群 {gid} 不是班级群。"
-                elif action in ("remove_class_group", "remove_normal_group", "remove_mute_group", "remove_chat_group") and value:
+                elif action == "remove_normal_group" and value:
                     gid = int(value)
-                    cg = cfg.get("chat_groups", [])
-                    if gid not in cg:
-                        cg.append(gid)
-                        cfg["chat_groups"] = cg
+                    ng = cfg.get("normal_groups", [])
+                    if gid in ng:
+                        ng.remove(gid)
+                        cfg["normal_groups"] = ng
                         _save_group_config(cfg)
-                        result = f"已将群 {gid} 设为闲聊群，小奈会主动聊天~"
+                        result = f"已将群 {gid} 从普通群移除。"
                     else:
-                        result = f"群 {gid} 已是闲聊群。"
+                        result = f"群 {gid} 不是普通群。"
+                elif action == "remove_mute_group" and value:
+                    gid = int(value)
+                    mg = cfg.get("mute_groups", [])
+                    if gid in mg:
+                        mg.remove(gid)
+                        cfg["mute_groups"] = mg
+                        _save_group_config(cfg)
+                        result = f"已将群 {gid} 从 mute_groups 移除。"
+                    else:
+                        result = f"群 {gid} 不在 mute_groups。"
                 elif action == "remove_chat_group" and value:
                     gid = int(value)
                     cg = cfg.get("chat_groups", [])
