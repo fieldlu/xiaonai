@@ -1,14 +1,21 @@
 # Changelog
+
+
+本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 与
+[Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## [0.0.11] - 2026-08-18
+
+### 修复
+- 补齐“第 N 点/项”标题识别，避免多主题回复在重新分段时跨主题合并。
+- 增加连续标题、短开场和数字标题格式的回归测试。
+
 ## [0.0.10] - 2026-08-18
 
 ### 修复
 - 继续优化真实女友感的消息分段：修复短标题跨主题吞并、长段尾部堆积和分段长度不均的问题。
 - 支持中文/ASCII 引号、括号跨行或跨空行时的安全合并，并在发送前将超长片段按句子或安全字符边界拆开。
 - 增补酒店建议、亲密关系咨询、多主题短标题、超长文本和空输入回归测试。
-
-
-本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 与
-[Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 ## [0.0.9] - 2026-08-18
 

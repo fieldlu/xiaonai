@@ -95,6 +95,15 @@ def test_more_than_four_explicit_topics_stay_topic_local():
     for i, segment in enumerate(segments, 1):
         assert f"第{i}，重点方面。第{i}项详情。" in segment
 
+
+
+def test_numeric_point_headings_are_topic_local():
+    text = "\n\n".join(f"第{i}点，重点方面。\n\n第{i}点详情。" for i in range(1, 6))
+    segments = _split_reply_segments(text)
+    assert len(segments) == 5
+    for i, segment in enumerate(segments, 1):
+        assert f"第{i}点，重点方面。第{i}点详情。" in segment
+
 def test_unclosed_quote_variants_and_short_reply_regressions():
     for text in (
         "评价是「神中神！\n」\n下一条",

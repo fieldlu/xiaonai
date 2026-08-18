@@ -337,8 +337,8 @@ def _has_unclosed_quote(line):
 _SHORT_REPLY_FRAGMENT_CHARS = 18
 _LONG_REPLY_FRAGMENT_CHARS = 100
 _REPLY_HEADING_RE = re.compile(
-    r"^(?:第?[一二三四五六七八九十百\d]+[、,.．：:，]|"
-    r"(?:首先|其次|然后|最后|另外|还有|最重要的是|第一点|第二点))"
+    r"^(?:第?[一二三四五六七八九十百\d]+(?:点|项)?[、,.．：:，]|"
+    r"(?:首先|其次|然后|最后|另外|还有|最重要的是))"
 )
 _REPLY_SENTENCE_RE = re.compile(r"(?<=[。！？!?；;])")
 
