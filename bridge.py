@@ -17,6 +17,8 @@ WS_PORT = 8080
 HTTP_PORT = 8081
 # Hard upper bound for outgoing assistant text message segments.
 MAX_REPLY_SEGMENTS = 4
+# Keep a safety margin below the transport layer hard limit.
+MAX_REPLY_SEGMENT_CHARS = 1200
 
 # 08-15: 项目根目录（替代硬编码部署路径，提升可移植性 + 去除服务器路径泄露）
 _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -304,13 +306,30 @@ _pending_messages = {}
 
 
 def _has_unclosed_quote(line):
-    """检测一行是否有未闭合的引号/括号（如「神中神！ 后换行）。成对符号出现次数为奇数 → 未闭合。"""
-    pairs = [("「", "」"), ("“", "”"), ("（", "）"), ("『", "』"), ("【", "】")]
-    for op, cl in pairs:
-        if op in line and cl not in line:
+    """检测中文/ASCII 引号与括号是否仍处于未闭合状态。"""
+    pairs = [
+        ("「", "」"),
+        ("“", "”"),
+        ("（", "）"),
+        ("『", "』"),
+        ("【", "】"),
+        ("(", ")"),
+        ("[", "]"),
+    ]
+    for opener, closer in pairs:
+        if line.count(opener) > line.count(closer):
             return True
-        # 都出现但次数不等（如 两个「 一个」）
-        if op in line and cl in line and line.count(op) > line.count(cl):
+    for quote in ('"',):
+        count = 0
+        escaped = False
+        for char in line:
+            if char == "\\" and not escaped:
+                escaped = True
+                continue
+            if char == quote and not escaped:
+                count += 1
+            escaped = False
+        if count % 2:
             return True
     return False
 
@@ -353,32 +372,41 @@ def _is_short_reply_fragment(segment):
 
 
 def _merge_reply_fragments(chunks):
-    """Attach short introductions/headings to the next substantive fragment."""
+    """Attach a heading to its immediate detail without swallowing later topics."""
     result = []
-    pending = []
-    for chunk in chunks:
-        chunk = chunk.strip()
-        if not chunk:
+    index = 0
+    while index < len(chunks):
+        current = chunks[index].strip()
+        if not current:
+            index += 1
             continue
-        if _is_short_reply_fragment(chunk):
-            if not pending or _is_reply_heading(chunk) or any(_is_reply_heading(item) for item in pending):
-                pending.append(chunk)
+        if _is_reply_heading(current):
+            parts = [current]
+            if index + 1 < len(chunks) and not _is_reply_heading(chunks[index + 1]):
+                parts.append(chunks[index + 1])
+                index += 2
             else:
-                # Ordinary short chat fragments should not all collapse into one
-                # message; only headings/intros get structural merging.
-                result.extend(pending)
-                pending = [chunk]
+                index += 1
+            result.append(_join_reply_fragments(parts))
             continue
-        if pending:
-            result.append(_join_reply_fragments(pending + [chunk]))
-            pending = []
-        else:
-            result.append(chunk)
-    if pending:
-        if any(_is_reply_heading(item) for item in pending):
-            result.append(_join_reply_fragments(pending))
-        else:
-            result.extend(pending)
+        if _is_short_reply_fragment(current) and index + 1 < len(chunks):
+            next_chunk = chunks[index + 1].strip()
+            if _is_reply_heading(next_chunk):
+                parts = [current, next_chunk]
+                if index + 2 < len(chunks) and not _is_reply_heading(chunks[index + 2]):
+                    parts.append(chunks[index + 2])
+                    index += 3
+                else:
+                    index += 2
+                result.append(_join_reply_fragments(parts))
+                continue
+            if not _is_short_reply_fragment(next_chunk):
+                result.append(_join_reply_fragments([current, next_chunk]))
+                index += 2
+                continue
+        result.append(current)
+        index += 1
+
     # A short sign-off is more natural attached to the preceding explanation.
     if len(result) >= 2 and _is_short_reply_fragment(result[-1]) and not _is_short_reply_fragment(result[-2]):
         result[-2] = _join_reply_fragments([result[-2], result[-1]])
@@ -387,13 +415,20 @@ def _merge_reply_fragments(chunks):
 
 
 def _rebalance_reply_segments(chunks):
-    """Pack consecutive chunks into at most four reasonably even chat messages."""
+    """Pack chunks evenly when possible without exceeding the transport-safe size."""
     chunks = [chunk.strip() for chunk in chunks if chunk and chunk.strip()]
     if len(chunks) <= MAX_REPLY_SEGMENTS:
         return chunks
 
-    # Keep a natural conversational opener as its own first message when it is
-    # short and the next chunks are clearly the detailed answer.
+    # Never compress pathological long replies into an oversized final message.
+    # Preserving all content is more important than the usual four-message cap.
+    if sum(len(chunk) for chunk in chunks) > MAX_REPLY_SEGMENT_CHARS * MAX_REPLY_SEGMENTS:
+        return chunks
+    # If the model produced more than four explicit topics, keep each topic
+    # intact instead of merging the last topics merely to satisfy a message cap.
+    if sum(1 for chunk in chunks if _is_reply_heading(chunk)) > MAX_REPLY_SEGMENTS:
+        return chunks
+
     opener = []
     if len(chunks) > MAX_REPLY_SEGMENTS and len(chunks[0]) <= 40 and not _is_reply_heading(chunks[0]):
         opener = [chunks[0]]
@@ -405,66 +440,112 @@ def _rebalance_reply_segments(chunks):
     if len(chunks) <= group_count:
         return opener + chunks
 
-    total_chars = sum(len(chunk) for chunk in chunks)
-    target = total_chars / group_count
-    prefix = [0]
-    for chunk in chunks:
-        prefix.append(prefix[-1] + len(chunk))
-
-    # Dynamic programming chooses contiguous boundaries closest to the target
-    # length, while retaining the model's original semantic order.
-    dp = [[None] * (len(chunks) + 1) for _ in range(group_count + 1)]
-    dp[0][0] = (0.0, [])
-    for groups in range(1, group_count + 1):
-        for end in range(groups, len(chunks) + 1):
-            best = None
-            for start in range(groups - 1, end):
-                previous = dp[groups - 1][start]
-                if previous is None:
-                    continue
-                length = prefix[end] - prefix[start]
-                score = previous[0] + abs(length - target)
-                candidate = (score, previous[1] + [end])
-                if best is None or candidate[0] < best[0]:
-                    best = candidate
-            dp[groups][end] = best
-
-    best = dp[group_count][len(chunks)]
-    if best is None:
-        return opener + chunks[:MAX_REPLY_SEGMENTS - len(opener)]
+    target = sum(len(chunk) for chunk in chunks) / group_count
     segments = []
     start = 0
-    for end in best[1]:
+    for group_index in range(group_count):
+        if group_index == group_count - 1:
+            candidate = chunks[start:]
+            if sum(len(part) for part in candidate) + max(0, len(candidate) - 1) <= MAX_REPLY_SEGMENT_CHARS:
+                segments.append(_join_reply_fragments(candidate))
+                break
+            # The total fits globally, so this only occurs when a previous
+            # boundary was too aggressive; fall back to preserving chunks.
+            return opener + chunks
+        groups_left = group_count - group_index - 1
+        max_end = len(chunks) - groups_left
+        current_length = 0
+        end = start
+        while end < max_end:
+            next_length = len(chunks[end]) + (1 if current_length else 0)
+            if current_length + next_length > MAX_REPLY_SEGMENT_CHARS:
+                break
+            if end > start:
+                current_distance = abs(current_length - target)
+                next_distance = abs(current_length + next_length - target)
+                if current_distance <= next_distance:
+                    break
+            current_length += next_length
+            end += 1
+        if end == start:
+            return opener + chunks
         segments.append(_join_reply_fragments(chunks[start:end]))
         start = end
     return opener + segments
 
 
 def _split_reply_blocks(text):
-    """Respect explicit blank-line message blocks, with a line fallback for old prompts."""
-    if re.search(r"\n\s*\n", text):
+    """Respect blank-line blocks while preserving quote state across lines."""
+    lines = text.splitlines()
+    if not lines:
+        return []
+    has_blank = any(not line.strip() for line in lines)
+
+    if not has_blank:
+        # Without blank lines, each normal line is a message candidate. A line
+        # is merged only while the previous candidate still has an open quote.
         blocks = []
-        for block in re.split(r"\n\s*\n+", text):
-            lines = [line.strip() for line in block.splitlines() if line.strip()]
-            if not lines:
+        current = []
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line:
                 continue
-            merged = []
-            for line in lines:
-                if merged and _has_unclosed_quote(merged[-1]):
-                    merged[-1] += line
-                else:
-                    merged.append(line)
-            blocks.append(_join_reply_fragments(merged))
+            if current and _has_unclosed_quote("\n".join(current)):
+                current.append(line)
+            else:
+                if current:
+                    blocks.append(_join_reply_fragments(current))
+                current = [line]
+        if current:
+            blocks.append(_join_reply_fragments(current))
         return blocks
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    merged = []
-    for line in lines:
-        if merged and _has_unclosed_quote(merged[-1]):
-            merged[-1] += line
+    blocks = []
+    current = []
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            if current and not _has_unclosed_quote("\n".join(current)):
+                blocks.append(_join_reply_fragments(current))
+                current = []
+            continue
+        was_unclosed = bool(current) and _has_unclosed_quote("\n".join(current))
+        current.append(line)
+        # A line that closes a quote opened before an empty line completes the
+        # quoted block; keep the following ordinary line as a new candidate.
+        if was_unclosed and not _has_unclosed_quote("\n".join(current)):
+            blocks.append(_join_reply_fragments(current))
+            current = []
+    if current:
+        blocks.append(_join_reply_fragments(current))
+    return blocks
+
+
+def _split_reply_chunk(chunk):
+    """Split an oversized chunk at sentence or safe character boundaries."""
+    if len(chunk) <= MAX_REPLY_SEGMENT_CHARS:
+        return [chunk]
+    sentences = [sentence.strip() for sentence in _REPLY_SENTENCE_RE.split(chunk) if sentence.strip()]
+    if not sentences:
+        sentences = [chunk]
+    parts = []
+    current = ""
+    for sentence in sentences:
+        if len(sentence) > MAX_REPLY_SEGMENT_CHARS:
+            if current:
+                parts.append(current)
+                current = ""
+            for start in range(0, len(sentence), MAX_REPLY_SEGMENT_CHARS):
+                parts.append(sentence[start:start + MAX_REPLY_SEGMENT_CHARS])
+            continue
+        if current and len(current) + len(sentence) > MAX_REPLY_SEGMENT_CHARS:
+            parts.append(current)
+            current = sentence
         else:
-            merged.append(line)
-    return merged
+            current += sentence
+    if current:
+        parts.append(current)
+    return parts or [chunk]
 
 
 def _split_reply_segments(text):
@@ -478,22 +559,24 @@ def _split_reply_segments(text):
     chunks = _merge_reply_fragments(_split_reply_blocks(text))
     expanded = []
     for chunk in chunks:
-        sentences = [sentence.strip() for sentence in _REPLY_SENTENCE_RE.split(chunk) if sentence.strip()]
-        if len(chunk) > _LONG_REPLY_FRAGMENT_CHARS and len(sentences) >= 2:
-            expanded.extend(sentences)
+        if len(chunk) > _LONG_REPLY_FRAGMENT_CHARS:
+            sentences = [sentence.strip() for sentence in _REPLY_SENTENCE_RE.split(chunk) if sentence.strip()]
+            if len(sentences) >= 2:
+                for sentence in sentences:
+                    expanded.extend(_split_reply_chunk(sentence))
+            else:
+                expanded.extend(_split_reply_chunk(chunk))
         else:
             expanded.append(chunk)
 
     if len(expanded) == 1:
         sentences = [sentence.strip() for sentence in _REPLY_SENTENCE_RE.split(expanded[0]) if sentence.strip()]
         if len(sentences) >= 3 and len(expanded[0]) > 60:
-            expanded = sentences
+            expanded = [part for sentence in sentences for part in _split_reply_chunk(sentence)]
 
-    segments = _rebalance_reply_segments(expanded)
-    if len(segments) > MAX_REPLY_SEGMENTS:
-        # Defensive guard: the packer should already enforce this invariant.
-        segments = segments[:MAX_REPLY_SEGMENTS - 1] + [_join_reply_fragments(segments[MAX_REPLY_SEGMENTS - 1:])]
-    return segments
+    # Do not force pathological long replies into four messages: that would
+    # create an oversized chunk and the transport layer would silently truncate it.
+    return _rebalance_reply_segments(expanded)
 
 
 async def _send_multi_message(ws, msg_type, target_id, text):

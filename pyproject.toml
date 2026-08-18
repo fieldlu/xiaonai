@@ -8,7 +8,7 @@
 
 [project]
 name = "xiaonai"
-version = "0.0.9"
+version = "0.0.10"
 description = "XiaoNai (小奈) — a production-grade QQ group assistant bot built on NapCat + OpenClaw + MiMo"
 readme = "README.md"
 requires-python = ">=3.10"
