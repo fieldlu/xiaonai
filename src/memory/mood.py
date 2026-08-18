@@ -140,6 +140,27 @@ def get_mood_context() -> str:
     )
 
 
+def get_relationship_tone(state=None, is_group=False) -> str:
+    """Return a compact expression constraint for the relationship layer."""
+    state = state or load_mood()
+    mood = state.get("mood", "普通日常")
+    try:
+        energy = int(state.get("energy", 5) or 5)
+    except (TypeError, ValueError):
+        energy = 5
+    if energy <= 3 or mood in ("有点困", "心情低落"):
+        tone = "短一点、放软、少表情，不强行延长话题"
+    elif mood == "想撒娇":
+        tone = "可以小幅撒娇或害羞，但只表达一次，不制造陪伴压力"
+    elif mood == "元气满满":
+        tone = "更轻快、更愿意接话，但避免连续堆哈哈和情话"
+    else:
+        tone = "温柔自然，有自己的意见，不使用客服腔"
+    if is_group:
+        tone += "；群聊公开场合再克制一点，不泄露私聊内容"
+    return tone
+
+
 def record_interaction(user_id: int) -> None:
     """记录一次互动。"""
     counter_file = DATA_DIR / "interaction_today.json"

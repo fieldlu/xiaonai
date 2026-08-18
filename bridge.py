@@ -136,6 +136,11 @@ SEND_HISTORY_SIZE = 20
 _health_status_msg = ""
 _pending_messages = {}
 
+# HTTP API lifecycle: keep one server across NapCat reconnects.
+_http_server_lock = asyncio.Lock()
+_http_runner = None
+_http_app = None
+
 # Lazy import for memory module (needs DATA_DIR set correctly)
 _memory_module = None
 
@@ -472,11 +477,20 @@ def _build_health_context():
 
 # ── Memory Context Injection v1 ──
 
-def _build_memory_context(uid, user_name, gid):
+def _build_memory_context(uid, user_name, gid, message_text=""):
     """Build memory context string for agent prompt. 情绪联动 + 表达学习(场合) + 主动回忆."""
     try:
         import json, os
         parts = []
+        # 0) 关系行为层：每个用户独立保存；第一阶段只做回复内关心，不主动私聊
+        try:
+            from src.memory.relationship_state import update_on_message, build_context
+            from src.memory.mood import load_mood as _load_mood_for_rel
+            _rel_mood = _load_mood_for_rel()
+            update_on_message(uid, message_text, bool(gid), mood=_rel_mood)
+            parts.append(build_context(uid, user_name, bool(gid), message_text, mood=_rel_mood))
+        except Exception:
+            pass
         # 1) 情绪联动: 记录互动 + 每4小时刷新 + 注入完整心情/语气
         try:
             from src.memory.mood import record_interaction, get_today_stats, refresh_mood, load_mood, get_mood_context
@@ -493,39 +507,45 @@ def _build_memory_context(uid, user_name, gid):
                     refresh = True
             if refresh:
                 refresh_mood(cnt, admin)
+                _st = load_mood()
             parts.append(get_mood_context())
+            try:
+                from src.memory.mood import get_relationship_tone
+                parts.append("[情绪与场合表达约束] " + get_relationship_tone(_st, bool(gid)))
+            except Exception:
+                pass
         except Exception:
             pass
         # 2) 表达学习: 场合提示
         scene = '群聊，话要简洁自然，别太粘人' if gid else '私聊，可以更随意亲近'
         parts.append(f'[场合: {scene}]')
-        # 3) 主动回忆: 用户记忆 + 已知事实
-        users_dir = os.path.join(os.path.dirname(__file__), 'data', 'memory', 'users')
-        uf = os.path.join(users_dir, str(uid) + '.json')
-        if os.path.exists(uf):
-            with open(uf, encoding='utf-8') as f:
-                data = json.load(f)
-            dims = data.get('dimensions', {})
-            nickname = data.get('nickname', user_name)
-            facts_list = data.get('facts', [])[:5]
-            parts.append(f'[用户记忆] {nickname}({uid})')
-            try:
-                from xiaonai_memory import composite_score, get_stage
-                comp = composite_score(dims)
-                tier = get_stage(comp)
-                parts.append(f'好感阶段: {tier} ({comp:.0f}/100)')
-            except Exception:
-                pass
-            if facts_list:
-                parts.append('已知事实(可以自然提起，别生硬背):')
-                for fact in facts_list:
-                    if isinstance(fact, dict):
-                        text = fact.get('content', str(fact))[:80]
-                    else:
-                        text = str(fact)[:80]
-                    parts.append(f'  - {text}')
-        if gid:
-            parts.append(f'(本消息来自群 {gid})')
+        # 3) 主动回忆: 私聊才允许注入用户私有记忆/昵称/好感阶段。
+        # 群聊只保留通用场合约束，避免模型意外复述私聊内容。
+        if not gid:
+            users_dir = os.path.join(os.path.dirname(__file__), 'data', 'memory', 'users')
+            uf = os.path.join(users_dir, str(uid) + '.json')
+            if os.path.exists(uf):
+                with open(uf, encoding='utf-8') as f:
+                    data = json.load(f)
+                dims = data.get('dimensions', {})
+                nickname = data.get('nickname', user_name)
+                facts_list = data.get('facts', [])[:5]
+                parts.append(f'[用户记忆] {nickname}({uid})')
+                try:
+                    from xiaonai_memory import composite_score, get_stage
+                    comp = composite_score(dims)
+                    tier = get_stage(comp)
+                    parts.append(f'好感阶段: {tier} ({comp:.0f}/100)')
+                except Exception:
+                    pass
+                if facts_list:
+                    parts.append('已知事实(可以自然提起，别生硬背):')
+                    for fact in facts_list:
+                        if isinstance(fact, dict):
+                            text = fact.get('content', str(fact))[:80]
+                        else:
+                            text = str(fact)[:80]
+                        parts.append(f'  - {text}')
         return '\n'.join(parts) + '\n\n'
     except Exception:
         return ''
@@ -2005,17 +2025,18 @@ async def handle_qq_message(ws, data):
         msg_for_agent = tp + chr(10) + chr(10) + msg_for_agent
         log.info("TOXIC uid %d", uid)
     # Inject memory context before agent call
-    _mem_ctx = _build_memory_context(uid, sname, gid if gid else 0)
+    _mem_ctx = _build_memory_context(uid, sname, gid if gid else 0, msg_for_agent)
     if _mem_ctx:
         msg_for_agent = _mem_ctx + msg_for_agent
     # Add personality context
     try:
-        _pc = _get_personality().personality_context
-        _pc_ctx = _pc(uid, sname)
-        if _pc_ctx:
-            msg_for_agent = _pc_ctx + msg_for_agent
+        if not gid:
+            _pc = _get_personality().personality_context
+            _pc_ctx = _pc(uid, sname)
+            if _pc_ctx:
+                msg_for_agent = _pc_ctx + msg_for_agent
     except: pass
-        # 定时提醒: 自然语言解析 + bridge 直处理 (跳过 agent, 防口嗨/空回复)
+    # 定时提醒: 自然语言解析 + bridge 直处理 (跳过 agent, 防口嗨/空回复)
     from datetime import datetime as _dt
     # 08-15: 识图描述块可能含「定时推送」等字样（如 GitHub 项目截图），
     # 会误触发 parse_reminder。解析提醒意图前先剥离识图描述，只用用户原始文字判断。
@@ -2219,18 +2240,28 @@ async def http_upload(request):
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
-async def run_http_server(ws):
-    app = web.Application()
-    app["napcat_ws"] = ws
-    app.router.add_post("/send", http_send)
-    app.router.add_get("/health", http_health)
-    app.router.add_post("/reload", http_reload)
-    app.router.add_post("/upload", http_upload)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", HTTP_PORT)
-    await site.start()
-    log.info("HTTP API on :%d", HTTP_PORT)
+async def ensure_http_server(ws):
+    """Start the local HTTP API once and refresh its active NapCat socket."""
+    global _http_runner, _http_app
+    async with _http_server_lock:
+        if _http_runner is None:
+            app = web.Application()
+            app["napcat_ws"] = ws
+            app.router.add_post("/send", http_send)
+            app.router.add_get("/health", http_health)
+            app.router.add_post("/reload", http_reload)
+            app.router.add_post("/upload", http_upload)
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, "127.0.0.1", HTTP_PORT)
+            await site.start()
+            _http_runner = runner
+            _http_app = app
+            log.info("HTTP API on :%d", HTTP_PORT)
+        else:
+            # NapCat may reconnect while the bridge process stays alive.
+            # Keep the existing listener but point handlers at the new socket.
+            _http_app["napcat_ws"] = ws
 
 # === Main ===
 async def handle_napcat_ws(websocket):
@@ -2239,7 +2270,10 @@ async def handle_napcat_ws(websocket):
     global _ws_healthy, _last_recv_time
     _ws_healthy = True
     _last_recv_time = time.time()
-    asyncio.create_task(run_http_server(websocket))
+    try:
+        await ensure_http_server(websocket)
+    except Exception as e:
+        log.error("HTTP API startup/refresh failed: %s", str(e)[:200])
     try:
         async for msg in websocket:
             try:
@@ -2254,8 +2288,10 @@ async def handle_napcat_ws(websocket):
     except Exception as e:
         log.warning("NapCat disconnected: " + str(e))
     finally:
-        current_ws[0] = None
-        _ws_healthy = False
+        # A stale connection must not clear the state of a newer reconnect.
+        if current_ws[0] is websocket:
+            current_ws[0] = None
+            _ws_healthy = False
 
 def cleanup_stale_locks():
     sessions_dir = Path(os.path.expanduser("~/.openclaw/agents/main/sessions"))
