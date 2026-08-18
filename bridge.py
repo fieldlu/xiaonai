@@ -1059,15 +1059,31 @@ def _at_qq_from_msg(msg):
     return int(m.group(1)) if m else None
 
 
-def _exec_reminder(r):
-    """Execute a parsed reminder action (set/list/delete/clear). Returns reply string."""
+def _reminder_owned(entry, requester_uid, requester_gid):
+    """Return whether a pending reminder belongs to the current private/group scope."""
+    if requester_gid:
+        return entry.get("group_id") == requester_gid
+    return not entry.get("group_id") and entry.get("user_id") == requester_uid
+
+
+def _exec_reminder(r, requester_uid=0, requester_gid=0, data_file=None):
+    """Execute a parsed reminder action within the requesting user/group scope."""
     import subprocess, os as _os, json as _json
     qqbot_dir = _os.path.dirname(__file__)
-    _TD = os.path.join(_PROJECT_ROOT, "data", "timed_msg.json")
+    _TD = data_file or os.path.join(_PROJECT_ROOT, "data", "timed_msg.json")
+
+    def _load_messages():
+        with open(_TD, encoding="utf-8") as _f:
+            return _json.load(_f)
+
+    def _save_messages(messages):
+        with open(_TD, "w", encoding="utf-8") as _f:
+            _json.dump(messages, _f, ensure_ascii=False, indent=2)
+
     if r["action"] == "set":
         # 去重
         try:
-            for _e in _json.load(open(_TD, encoding="utf-8")):
+            for _e in _load_messages():
                 if (not _e.get("sent") and _e.get("send_at") == r["send_at"]
                         and _e.get("message") == r["content"]
                         and ((not r["group_id"] and _e.get("user_id") == r["user_id"])
@@ -1100,8 +1116,8 @@ def _exec_reminder(r):
         return "设置提醒失败，稍后再试～"
     if r["action"] == "list":
         try:
-            msgs = _json.load(open(_TD, encoding="utf-8"))
-            pend = [m for m in msgs if not m.get("sent")]
+            msgs = _load_messages()
+            pend = [m for m in msgs if not m.get("sent") and _reminder_owned(m, requester_uid, requester_gid)]
             if not pend:
                 return "当前没有定时提醒～"
             lines = ["[当前定时提醒 %d 条]" % len(pend)]
@@ -1114,18 +1130,28 @@ def _exec_reminder(r):
             return "查看提醒失败"
     if r["action"] == "delete":
         try:
-            msgs = _json.load(open(_TD, encoding="utf-8"))
+            msgs = _load_messages()
             kw = re.sub(r"(删除|取消|删掉|移除|去掉|把|的提醒|提醒|帮我|请|这个)", "", r["match"]).strip()
+            kw = re.sub(r"的$", "", kw).strip()
+            date_match = re.search(r"20\d{2}[./年-]\d{1,2}[./月-]\d{1,2}", kw)
+            date_key = None
+            if date_match:
+                date_key = re.sub(r"[./年-]", "-", date_match.group(0))
             removed = []
+            kept = []
             for m in msgs:
-                if m.get("sent"):
-                    continue
-                if (kw and (kw in m.get("message", "") or kw in m.get("send_at", ""))) or                    (not kw and r["match"] == "取消提醒"):
+                matches_scope = (not m.get("sent") and _reminder_owned(m, requester_uid, requester_gid))
+                matches_target = bool(kw) and (
+                    (date_key and m.get("send_at", "").startswith(date_key))
+                    or (kw in m.get("message", ""))
+                    or (kw in m.get("send_at", ""))
+                )
+                if matches_scope and (matches_target or (not kw and r["match"] == "取消提醒")):
                     removed.append(m)
+                else:
+                    kept.append(m)
             if removed:
-                for m in removed:
-                    msgs.remove(m)
-                _json.dump(msgs, open(_TD, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+                _save_messages(kept)
                 names = "、".join(m.get("message", "?") for m in removed)
                 log.info("Reminders deleted: %s", names)
                 return "[提醒已删除] %s" % names
@@ -1135,10 +1161,13 @@ def _exec_reminder(r):
             return "删除失败"
     if r["action"] == "clear":
         try:
-            n = len(_json.load(open(_TD, encoding="utf-8")))
-            _json.dump([], open(_TD, "w", encoding="utf-8"))
-            log.info("Reminders cleared: %d", n)
-            return "[定时提醒已清空] 共删除 %d 条。" % n
+            msgs = _load_messages()
+            removed = [m for m in msgs if not m.get("sent") and _reminder_owned(m, requester_uid, requester_gid)]
+            kept = [m for m in msgs if m not in removed]
+            _save_messages(kept)
+            n = len(removed)
+            log.info("Reminders cleared in scope uid=%s gid=%s: %d", requester_uid, requester_gid, n)
+            return "[定时提醒已清空] 共删除 %d 条。" % n if n else "当前没有可清空的定时提醒～"
         except Exception:
             return "清空失败"
     return None
@@ -1377,7 +1406,7 @@ def _inject_command_data(msg, user_name="", uid=0, gid=0):
                 from datetime import datetime as _dt
                 _rr = parse_reminder(msg, _dt.now(), uid, gid)
                 if _rr:
-                    _reply = _exec_reminder(_rr)
+                    _reply = _exec_reminder(_rr, uid, gid)
                     if _reply:
                         out.append(_reply)
             if out:
@@ -2058,10 +2087,12 @@ async def handle_qq_message(ws, data):
     from datetime import datetime as _dt
     # 08-15: 识图描述块可能含「定时推送」等字样（如 GitHub 项目截图），
     # 会误触发 parse_reminder。解析提醒意图前先剥离识图描述，只用用户原始文字判断。
-    _reminder_msg = _strip_vision_desc(msg_for_agent)
+    # 只用当前用户本轮的已清洗文字判断提醒意图；记忆、人格和历史上下文不能触发
+    # 设置/取消提醒，否则会把上下文里的日期或“提醒”误当成当前命令。
+    _reminder_msg = _strip_vision_desc(_user_raw_text)
     _rm = parse_reminder(_reminder_msg, _dt.now(), uid, gid, at_target=_at_qq_from_msg(_reminder_msg))
     if _rm:
-        _remind_reply = _exec_reminder(_rm)
+        _remind_reply = _exec_reminder(_rm, uid, gid)
         if _remind_reply:
             log.info("REMINDER direct reply (%s): %s", _rm["action"], _remind_reply[:40])
             _ok = await send_qq_message(ws, msg_type, gid if gid else uid, _remind_reply)

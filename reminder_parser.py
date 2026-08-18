@@ -14,9 +14,23 @@ import re
 from datetime import datetime, timedelta
 
 # ---------- 意图 ----------
-_CLEAR_RE = re.compile(r"清空.{0,8}提醒|删除所有提醒|取消所有提醒|清掉提醒")
+_CLEAR_RE = re.compile(
+    r"清空.{0,8}提醒|删除所有(?:定制|定时)?提醒|取消所有(?:定制|定时)?提醒|"
+    r"清掉提醒|清理所有(?:定制|定时)?提醒|全部取消(?:定制|定时)?提醒"
+)
 _LIST_RE = re.compile(r"查看.{0,8}提醒|查看所有|所有提醒|提醒任务|查看定时任务|列出提醒|有哪些提醒|我的提醒|看看提醒|显示提醒|什么提醒")
-_DEL_RE = re.compile(r"删除提醒|取消提醒|取消.{0,15}提醒|删除.{0,15}提醒|删掉.{0,10}提醒|移除.{0,10}提醒|去掉.{0,10}提醒|把.{0,12}提醒.{0,4}(删|取|取消)")
+_DEL_RE = re.compile(
+    r"删除提醒|取消提醒|取消.{0,15}提醒|删除.{0,15}提醒|删掉.{0,10}提醒|"
+    r"移除.{0,10}提醒|去掉.{0,10}提醒|把.{0,12}提醒.{0,4}(删|取|取消)|"
+    r"(?:删除|取消|删掉|移除|去掉)\s*20\d{2}[./年-]\d{1,2}[./月-]\d{1,2}(?:日|号)?(?:的(?:提醒)?|那天|日期)?"
+)
+_COMMAND_PREFIX_RE = re.compile(r"^(?:(?:请|帮我|帮忙|麻烦)\s*)+")
+_EXPLANATION_PREFIX_RE = re.compile(
+    r"^(?:请解释|解释一下|解释|说明一下|说明|我想知道|告诉我|怎么理解|如何理解|什么叫|为什么)"
+)
+_QUOTED_EXPLANATION_RE = re.compile(
+    r"^[\"“].*(?:提醒|定时|闹钟).*?[\"”](?:是什么意思|什么意思|怎么理解|如何理解)$"
+)
 _SET_RE = re.compile(r"提醒|定时|闹钟|设个提醒|设置提醒")
 
 # ---------- 重复 ----------
@@ -208,12 +222,19 @@ def _extract_content(msg):
 def parse_reminder(msg, now, uid, gid=0, at_target=None):
     if not msg or not isinstance(msg, str):
         return None
-    if _CLEAR_RE.search(msg) and "提醒" in msg:
+    command = _COMMAND_PREFIX_RE.sub("", msg.strip()).rstrip("。！？!?，, ")
+    if _CLEAR_RE.fullmatch(command) and "提醒" in command:
         return {"action": "clear"}
-    if _LIST_RE.search(msg):
+    if _LIST_RE.fullmatch(command):
         return {"action": "list"}
-    if _DEL_RE.search(msg):
-        return {"action": "delete", "match": msg}
+    if _DEL_RE.fullmatch(command):
+        return {"action": "delete", "match": command}
+    text = msg.strip()
+    if (
+        (_EXPLANATION_PREFIX_RE.match(text) and _SET_RE.search(text))
+        or _QUOTED_EXPLANATION_RE.fullmatch(text)
+    ):
+        return None
     if not _SET_RE.search(msg):
         return None
     send_at, rec, dow, dom = _resolve(msg, now)
