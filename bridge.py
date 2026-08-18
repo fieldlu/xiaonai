@@ -1909,6 +1909,24 @@ async def handle_qq_message(ws, data):
         return
 
     log.info("HANDLER_POST_ASSEMBLY msg_len=%d is_list=%s", len(msg_content.strip()), str(isinstance(data.get("message", ""), list)))
+
+    # Phase 2 relationship controls are explicit, private-by-default commands.
+    # Handle them before memory injection and before the LLM so they cannot be
+    # paraphrased, delayed, or accidentally applied to another user.
+    try:
+        from src.memory.relationship_state import apply_relationship_command
+        _relationship_command = msg_content
+        if gid:
+            _relationship_command = _relationship_command.replace(f"[CQ:at,qq={BOT_QQ}]", "").strip()
+        _relationship_reply = apply_relationship_command(uid, _relationship_command, bool(gid))
+        if _relationship_reply:
+            _target = gid if gid else uid
+            await send_qq_message(ws, msg_type, _target, _relationship_reply)
+            log.info("RELATIONSHIP_COMMAND uid=%s gid=%s command=%s", uid, gid, _relationship_command[:40])
+            return
+    except Exception as _relationship_exc:
+        log.warning("relationship_command_failed uid=%s: %s", uid, str(_relationship_exc)[:120])
+
     sender = data.get("sender", {})
     sname = sender.get("nickname", str(uid))
     role = user_role(uid)

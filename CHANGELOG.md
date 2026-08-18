@@ -3,6 +3,21 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 与
 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.0.6] - 2026-08-18
+
+### 新增
+- **第二阶段持续陪伴关系层**：为每个用户增加主动陪伴开关、安静时段、每日额度、20 小时冷却、称呼偏好、讨厌短语和有限关系事件记录。
+- **明确的私聊控制命令**：支持“开启陪伴提醒”“关闭陪伴提醒”“陪伴状态”“叫我 X”“别这样叫我 X”“我不喜欢你说 X”，命令在 bridge 层直接处理，不交给 LLM 猜测。
+- **时间感和连续性提示**：根据早晨、白天、晚上、深夜调整回复约束；私聊最多自然跟进一个当前用户自己的未完话题。
+
+### 安全与隐私
+- 主动陪伴默认关闭；群聊不能修改个人陪伴设置，也不会注入私聊称呼、偏好、事件或开放话题。
+- 主动陪伴不使用催促回复、制造愧疚或“为什么不理我”等情感施压话术。
+- 关系事件只保存短摘要，最多 20 条，不保存完整聊天原文；旧关系 JSON 缺字段时使用安全默认值迁移。
+
+### 测试
+- `python3 -m py_compile bridge.py xiaonai_memory.py src/memory/mood.py src/memory/relationship_state.py test_relationship_state.py test_phase2_relationship.py test_reply_segments.py`
+- `python3 -m unittest -v test_relationship_state.py test_phase2_relationship.py test_reply_segments.py`
 ## [0.0.5] - 2026-08-18
 
 ### 新增
