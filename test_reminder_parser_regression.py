@@ -40,6 +40,15 @@ class ReminderParserRegressionTests(unittest.TestCase):
         self.assertIsNone(parse_reminder("我想知道怎么取消2026-08-19的", self.NOW, 1001))
         self.assertIsNone(parse_reminder("请解释“明天9点提醒我报名”是什么意思", self.NOW, 1001))
         self.assertIsNone(parse_reminder("“明天9点提醒我报名”是什么意思", self.NOW, 1001))
+        self.assertIsNone(parse_reminder("“明天9点提醒我报名”是什么意思？", self.NOW, 1001))
+        for text in (
+            "不要明天9点提醒我报名",
+            "请不要明天9点提醒我报名",
+            "我不要明天9点提醒我报名",
+            "我不想要明天9点提醒我报名",
+            "我不需要明天9点提醒我报名",
+        ):
+            self.assertIsNone(parse_reminder(text, self.NOW, 1001))
 
     def test_executor_deletes_by_date_and_keeps_other_scopes(self):
         records = [
@@ -63,6 +72,19 @@ class ReminderParserRegressionTests(unittest.TestCase):
             ids = {item["id"] for item in json.loads(path.read_text(encoding="utf-8"))}
             self.assertEqual(ids, {"b1", "g1"})
 
+    def test_executor_date_content_delete_does_not_remove_same_day_other_messages(self):
+        records = [
+            {"id": "a1", "user_id": 1001, "group_id": None, "message": "考试提醒", "send_at": "2026-08-19 09:00", "sent": False},
+            {"id": "a2", "user_id": 1001, "group_id": None, "message": "买菜提醒", "send_at": "2026-08-19 10:00", "sent": False},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "timed_msg.json"
+            path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+            delete = parse_reminder("取消2026年8月19日的考试提醒", self.NOW, 1001)
+            bridge._exec_reminder(delete, 1001, 0, str(path))
+            ids = {item["id"] for item in json.loads(path.read_text(encoding="utf-8"))}
+            self.assertEqual(ids, {"a2"})
+
     def test_executor_scopes_group_actions(self):
         records = [
             {"id": "g1", "user_id": 3003, "group_id": 9009, "message": "当前群提醒", "send_at": "2026-08-19 09:00", "sent": False},
@@ -79,6 +101,15 @@ class ReminderParserRegressionTests(unittest.TestCase):
             bridge._exec_reminder({"action": "clear"}, 4004, 9009, str(path))
             ids = {item["id"] for item in json.loads(path.read_text(encoding="utf-8"))}
             self.assertEqual(ids, {"g2", "p1"})
+            records = [
+                {"id": "g3", "user_id": 3003, "group_id": 9009, "message": "当前群日期提醒", "send_at": "2026-08-19 09:00", "sent": False},
+                {"id": "g4", "user_id": 3003, "group_id": 9010, "message": "其他群日期提醒", "send_at": "2026-08-19 09:00", "sent": False},
+            ]
+            path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+            delete = parse_reminder("取消2026-8-19的", self.NOW, 4004, gid=9009)
+            bridge._exec_reminder(delete, 4004, 9009, str(path))
+            ids = {item["id"] for item in json.loads(path.read_text(encoding="utf-8"))}
+            self.assertEqual(ids, {"g4"})
 
 
 if __name__ == "__main__":

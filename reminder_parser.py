@@ -31,6 +31,9 @@ _EXPLANATION_PREFIX_RE = re.compile(
 _QUOTED_EXPLANATION_RE = re.compile(
     r"^[\"“].*(?:提醒|定时|闹钟).*?[\"”](?:是什么意思|什么意思|怎么理解|如何理解)$"
 )
+_NEGATIVE_SET_RE = re.compile(
+    r"^(?:(?:请|帮我|帮忙|麻烦)\s*)*(?:(?:我)?(?:不要|不想要|不需要|不用|不必|无需|不希望|不愿意)|别|勿)"
+)
 _SET_RE = re.compile(r"提醒|定时|闹钟|设个提醒|设置提醒")
 
 # ---------- 重复 ----------
@@ -229,10 +232,11 @@ def parse_reminder(msg, now, uid, gid=0, at_target=None):
         return {"action": "list"}
     if _DEL_RE.fullmatch(command):
         return {"action": "delete", "match": command}
-    text = msg.strip()
+    text = msg.strip().rstrip("。！？!?，, ")
     if (
         (_EXPLANATION_PREFIX_RE.match(text) and _SET_RE.search(text))
         or _QUOTED_EXPLANATION_RE.fullmatch(text)
+        or (_NEGATIVE_SET_RE.match(text) and _SET_RE.search(text))
     ):
         return None
     if not _SET_RE.search(msg):

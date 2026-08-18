@@ -1132,20 +1132,32 @@ def _exec_reminder(r, requester_uid=0, requester_gid=0, data_file=None):
         try:
             msgs = _load_messages()
             kw = re.sub(r"(删除|取消|删掉|移除|去掉|把|的提醒|提醒|帮我|请|这个)", "", r["match"]).strip()
-            kw = re.sub(r"的$", "", kw).strip()
-            date_match = re.search(r"20\d{2}[./年-]\d{1,2}[./月-]\d{1,2}", kw)
+            date_match = re.search(r"(20\d{2})[./年-](\d{1,2})[./月-](\d{1,2})[日号]?", kw)
             date_key = None
+            content_kw = kw
             if date_match:
-                date_key = re.sub(r"[./年-]", "-", date_match.group(0))
+                year, month, day = (int(part) for part in date_match.groups())
+                date_key = f"{year:04d}-{month:02d}-{day:02d}"
+                content_kw = (kw[:date_match.start()] + kw[date_match.end():]).strip()
+                content_kw = re.sub(r"^(?:的提醒|的|那天|日期)", "", content_kw).strip()
+            else:
+                content_kw = re.sub(r"的$", "", content_kw).strip()
             removed = []
             kept = []
             for m in msgs:
                 matches_scope = (not m.get("sent") and _reminder_owned(m, requester_uid, requester_gid))
-                matches_target = bool(kw) and (
-                    (date_key and m.get("send_at", "").startswith(date_key))
-                    or (kw in m.get("message", ""))
-                    or (kw in m.get("send_at", ""))
-                )
+                if date_key and content_kw:
+                    matches_target = (
+                        m.get("send_at", "").startswith(date_key)
+                        and content_kw in m.get("message", "")
+                    )
+                elif date_key:
+                    matches_target = m.get("send_at", "").startswith(date_key)
+                else:
+                    matches_target = bool(content_kw) and (
+                        content_kw in m.get("message", "")
+                        or content_kw in m.get("send_at", "")
+                    )
                 if matches_scope and (matches_target or (not kw and r["match"] == "取消提醒")):
                     removed.append(m)
                 else:
