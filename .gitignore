@@ -12,7 +12,8 @@ data/*.db
 data/*.sqlite*
 data/memory/
 data/diary/
-data/knowledge/
+data/knowledge/*
+data/knowledge/school/
 data/uploads/
 data/timed_msg.json
 data/scheduler_state.json
@@ -44,3 +45,7 @@ Thumbs.db
 # Editors
 .idea/
 .vscode/
+
+# Example knowledge base (sanitized, tracked in git)
+!data/knowledge/school/
+!data/knowledge/school/**
