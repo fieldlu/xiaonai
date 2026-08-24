@@ -4,6 +4,15 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 与
 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.0.12] - 2026-08-24
+
+### 新增
+- 附带脱敏示例知识库 `data/knowledge/school/`（243 个文件）：武汉理工大学公开校情（新生攻略、选课评价汇总、教师信息、学生手册要点、校级办法），部署后可立即体验检索。
+- 知识库整理方法论沉淀：空壳文件清理、教师/课程评价碎片按主题合并、BM25 口语停用词扩充。
+
+### 变更
+- `.gitignore`：`data/knowledge/school/` 白名单纳入版本管理，其余运行时知识库仍忽略。
+
 ## [0.0.11] - 2026-08-18
 
 ### 修复
