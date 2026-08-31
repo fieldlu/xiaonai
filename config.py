@@ -5,7 +5,7 @@ class BotConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
 
     mimo_api_key: str = ""
-    mimo_base_url: str = "https://opencode.ai/zen/go/v1"
+    mimo_base_url: str = "https://api.xiaomimimo.com/v1"
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com/v1"
     qw_api_key: str = ""
