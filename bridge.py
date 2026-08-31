@@ -1460,7 +1460,7 @@ def _reply_relevance_check(desc_text, reply):
         from config import bot_config
         system = ("判断回复是否在谈图片内容。只输出：相关 或 不相关。")
         user = ("[图]\n" + desc_text[:800] + "\n\n[回复]\n" + reply[:600] + "\n\n输出：")
-        # 08-15: 判断器走 mimo-proxy (:8898) + max_tokens 500——直连 opencode 时 MiMo
+        # 08-15: 判断器走 mimo-proxy (:8898) + max_tokens 500——直连上游时 MiMo
         # thinking 压不住导致 content 空/finish=length；proxy 强制 thinking 后 content 正常。
         # timeout 25s：proxy 首次真实生成约 15s（缓存命中后快）
         with httpx.Client(timeout=25.0) as client:
