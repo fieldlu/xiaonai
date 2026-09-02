@@ -24,6 +24,42 @@ sys.stdout.close()
 sys.stdout = _real_stdout
 
 TARGET_URL = 'http://i.whut.edu.cn/xxtg/'
+
+# 09-02: 学生相关性过滤。综合信息网是全校门户，大量通知面向教职工/行政
+# （工会、人事、采购、基建…），班群受众是学生，这些推送全是噪音。
+# 规则：命中行政部门标签或教师向排除词 → 丢弃；否则命中学生关键词才保留。
+STUDENT_KEYWORDS = (
+    "学生", "本科生", "研究生", "博士生", "推免", "保研", "考研",
+    "免试攻读", "选课", "补考", "缓考", "重修", "成绩", "考试",
+    "竞赛", "大赛", "报名", "自习", "体测", "体质健康", "缓测",
+    "奖学金", "助学金", "资助", "贷款", "勤工", "评优", "表彰",
+    "社团", "志愿者", "支教", "讲座", "实习", "实践", "毕业",
+    "答辩", "学位", "四六级", "普通话", "征兵", "军训", "报到",
+    "注册", "开学", "宿舍", "校园卡", "图书", "班车", "医保",
+    "体检", "心理", "学工", "辅导员", "团委", "社会实践",
+    "寒暑假", "放假", "校历", "信号屏蔽", "停电", "停水",
+    "缴费", "学费", "招聘会", "宣讲会", "就业",
+)
+NOTICE_EXCLUDE_KEYWORDS = (
+    "留学生", "教研", "教职工", "青年教师", "教师岗", "师资",
+    "博士后", "拟聘用", "任前公示", "出国研修", "成果转化",
+    "周转房", "住房", "公积金",
+)
+ADMIN_DEPT_TAGS = (
+    "工会", "人力资源部", "后管处", "基建处", "组织部", "统战部",
+    "纪检监察", "纪委", "党校", "离退休", "档案馆", "审计处",
+    "发展规划处", "采购", "招投标",
+)
+
+
+def is_student_notice(title):
+    """True if the notice title is student-relevant."""
+    if any(tag in title for tag in ADMIN_DEPT_TAGS):
+        return False
+    if any(w in title for w in NOTICE_EXCLUDE_KEYWORDS):
+        return False
+    return any(w in title for w in STUDENT_KEYWORDS)
+
 # TARGET_DATE (today or yesterday) defined above
 
 # sent-URL cache: prevents Seeyon OA dynamic links (which don't embed dates in URLs)
@@ -142,6 +178,11 @@ def format_message(notices):
 def main():
     try:
         notices = fetch_notice_list()
+        # 09-02: 只推学生相关通知，教职工/行政事务静默丢弃（记 stderr 便于排查）
+        for _d, _t, _u in notices:
+            if not is_student_notice(_t):
+                print(f'[campus_daily] filter drop: {_d} {_t[:45]}', file=sys.stderr)
+        notices = [(d, t, u) for d, t, u in notices if is_student_notice(t)]
         yesterday_notices = [(d, t, u) for d, t, u in notices if d == TARGET_DATE]
 
         # Skip items whose URL was already included in a previous campus daily run.
