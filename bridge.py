@@ -120,6 +120,31 @@ def _flush_late_join(key, ws, bd):
 # fire waits for these so images are understood before the reply is assembled.
 pending_vision = {}
 
+# 09-02: 静默群（class/normal）图片/表情 90s 等待窗口。
+# 有人发图未@ → 暂存 URL；该群下一条消息提及「小奈」才识图并按正常流程回复；
+# 未提及/超时则丢弃保持静默；新图重置窗口（仅保留最后一张）。
+IMAGE_WAIT_SECONDS = 90
+PENDING_IMG_WAIT = {}  # gid -> {"url": str, "summary": str, "timer": TimerHandle}
+
+
+def _stash_pending_image(gid, url, summary):
+    old = PENDING_IMG_WAIT.pop(gid, None)
+    if old and old.get("timer"):
+        try:
+            old["timer"].cancel()
+        except Exception:
+            pass
+    entry = {"url": url, "summary": summary or "", "timer": None}
+
+    def _expire(g=gid, e=entry):
+        if PENDING_IMG_WAIT.get(g) is e:
+            PENDING_IMG_WAIT.pop(g, None)
+            log.info("[IMG_WAIT] expire gid=%s (%ds no mention)", g, IMAGE_WAIT_SECONDS)
+
+    entry["timer"] = asyncio.get_running_loop().call_later(IMAGE_WAIT_SECONDS, _expire)
+    PENDING_IMG_WAIT[gid] = entry
+    log.info("[IMG_WAIT] stash gid=%s summary=%s wait=%ss", gid, (summary or "")[:30], IMAGE_WAIT_SECONDS)
+
 pending_messages = {}
 batch_tasks = {}
 
@@ -2044,6 +2069,9 @@ async def handle_qq_message(ws, data):
             return
 
     # Extract text + OCR images (OCR first so agent sees image content before user instruction)
+    # 09-02: 静默群（class/normal）图片等待窗口判定用
+    _grp_need_at = bool(gid) and gid in (GROUP_POLICY.get("class_groups", []) + GROUP_POLICY.get("normal_groups", []))
+    _reset_wait_this_msg = False
     if isinstance(msg_content, list):
         text_parts = []
         ocr_parts = []
@@ -2069,7 +2097,11 @@ async def handle_qq_message(ws, data):
                 img_summary = seg.get("data", {}).get("summary", "") or seg.get("data", {}).get("text", "")
                 if img_summary:
                     text_parts.append(img_summary)
-                if img_url and not _skip_vision:
+                if img_url and _skip_vision:
+                    # 09-02: 静默群未@图片 → 暂存进 90s 等待窗口，不立即识图
+                    _reset_wait_this_msg = True
+                    _stash_pending_image(gid, img_url, img_summary)
+                elif img_url:
                     key = ("g_" if gid else "p_") + str(gid if gid else uid)
                     log.info("Vision: processing image %d with MiMo...", image_count)
                     # Run MiMo vision in the background; the batch fire waits for it.
@@ -2174,6 +2206,28 @@ async def handle_qq_message(ws, data):
             else:
                 parts.append(user_text)
         msg_content = "".join(parts)
+
+    # 09-02: 静默群图片 90s 等待窗口——本条消息若提及小奈，识图上一张待定图后按正常流程回复
+    if gid and _grp_need_at and not _reset_wait_this_msg:
+        _iw_pend = PENDING_IMG_WAIT.pop(gid, None)
+        if _iw_pend:
+            try:
+                if _iw_pend.get("timer"):
+                    _iw_pend["timer"].cancel()
+            except Exception:
+                pass
+            if ("@小奈" in msg_content) or ("小奈" in msg_content) or (f"[CQ:at,qq={BOT_QQ}]" in msg_content):
+                if _iw_pend.get("url"):
+                    log.info("IMG_WAIT hit gid=%s: mention after image, start vision", gid)
+                    try:
+                        _iw_desc = await _describe_image_with_mimo(_iw_pend["url"], msg_content[:500])
+                    except Exception as e:
+                        log.error("IMG_WAIT vision error gid=%s: %s", gid, str(e)[:150])
+                        _iw_desc = ""
+                    msg_content += chr(10) + (f"[用户发了一张图片，AI看图后得到的信息如下，用你自己的女大学生口吻自然转述给用户，别照抄这些描述，别用学名/百科腔，像平常聊天一样说：]{chr(10)}{_iw_desc}"
+                                              if _iw_desc else "[用户发了图片但没识别出来，自然地问一下他要看什么]")
+            else:
+                log.info("[IMG_WAIT] drop gid=%s (next msg no mention)", gid)
 
     if not msg_content.strip():
         log.info("HANDLER_SKIP_EMPTY")
