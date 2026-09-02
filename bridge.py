@@ -2049,6 +2049,11 @@ async def handle_qq_message(ws, data):
         ocr_parts = []
         file_parts = []
         image_count = 0
+        # 09-02: class/normal 群未 @ 小奈时不启动识图（省 API + 与严格 @ 静默判定一致）
+        _grp_need_at = bool(gid) and gid in (GROUP_POLICY.get("class_groups", []) + GROUP_POLICY.get("normal_groups", []))
+        _raw_text_all = "".join(s.get("data", {}).get("text", "") for s in msg_content if s.get("type") == "text")
+        _at_bot_any = any(s.get("type") == "at" and str(s.get("data", {}).get("qq", "")) == str(BOT_QQ) for s in msg_content)
+        _skip_vision = _grp_need_at and not _at_bot_any and ("小奈" not in _raw_text_all)
         for seg in msg_content:
             if seg.get("type") == "text":
                 text_parts.append(seg.get("data", {}).get("text", ""))
@@ -2064,7 +2069,7 @@ async def handle_qq_message(ws, data):
                 img_summary = seg.get("data", {}).get("summary", "") or seg.get("data", {}).get("text", "")
                 if img_summary:
                     text_parts.append(img_summary)
-                if img_url:
+                if img_url and not _skip_vision:
                     key = ("g_" if gid else "p_") + str(gid if gid else uid)
                     log.info("Vision: processing image %d with MiMo...", image_count)
                     # Run MiMo vision in the background; the batch fire waits for it.
@@ -2258,10 +2263,10 @@ async def handle_qq_message(ws, data):
             if kw in msg_content:  # Check original msg_content before sanitize
                 is_mentioned = True
                 break
-        # 08-15: 发图是明确意图，图片消息（含识图描述前缀）不应被静默丢弃，
-        # 否则 class_group 里发图永远收不到小奈回应。
-        has_image = ("用户发了一张图片" in msg_content) or ("收到图片" in msg_content) or ("用户发了图片" in msg_content)
-        if not is_mentioned and not has_image:
+        # 09-02: 收紧为严格 @ 制。08-15 曾放行图片（has_image 免@），
+        # 但表情包也被 NapCat 当 image 段 → 小奈对表情包自动识图回复。
+        # 用户明确要求群里一律 @ 再回，图片/表情不再免@。私聊不受影响。
+        if not is_mentioned:
             log.info("[SILENT class_group=%d user=%d] no mention, skip", gid, uid)
             return
 
