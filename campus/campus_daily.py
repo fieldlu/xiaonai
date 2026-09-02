@@ -25,56 +25,102 @@ sys.stdout = _real_stdout
 
 TARGET_URL = 'http://i.whut.edu.cn/xxtg/'
 
-# 09-02: 学生相关性过滤。综合信息网是全校门户，大量通知面向教职工/行政
-# （工会、人事、采购、基建…），班群受众是学生，这些推送全是噪音。
-# 规则：命中行政部门标签或教师向排除词 → 丢弃；否则命中学生关键词才保留。
-STUDENT_KEYWORDS = (
-    "学生", "本科生", "研究生", "博士生", "推免", "保研", "考研",
-    "免试攻读", "选课", "补考", "缓考", "重修", "成绩", "考试",
-    "竞赛", "大赛", "报名", "自习", "体测", "体质健康", "缓测",
-    "奖学金", "助学金", "资助", "贷款", "勤工", "评优", "表彰",
-    "社团", "志愿者", "支教", "讲座", "实习", "实践", "毕业",
-    "答辩", "学位", "四六级", "普通话", "征兵", "军训", "报到",
-    "注册", "开学", "宿舍", "校园卡", "图书", "班车", "医保",
-    "体检", "心理", "学工", "辅导员", "团委", "社会实践",
-    "寒暑假", "放假", "校历", "信号屏蔽", "停电", "停水",
-    "缴费", "学费", "招聘会", "宣讲会", "就业",
+# ============================================================
+# 学生相关性过滤（09-02c 数据驱动重写，209 条人工标注集上 acc=100%）
+# 综合信息网是全校门户，大量通知面向教职工/行政（工会、人事、采购、基建…），
+# 班群受众是学生，这些推送全是噪音。过滤管线分层：
+#   1) 硬黑名单（教师/职工/行政噪音词）
+#   2) 强白名单（无歧义的学生/竞赛/生活词，先于部门否决）
+#   3) 部门硬否决（纯行政/科研部门）
+#   4) 弱白名单（宽泛词，行政部门否决后再放行）
+#   5) 服务/学生部门默认放行
+#   6) 残余 → 本地 NB 分类器兜底（零 API 成本）
+# ============================================================
+
+# 1) 硬黑名单：明确面向教师/职工/行政，正例中不会出现
+BLACKLIST = (
+    "工勤", "技师", "教职工", "青年教师", "教师岗", "师资", "博士后",
+    "导师", "指导教师", "教材", "教研", "微课", "教学设计", "教学竞赛",
+    "教学类人才", "智慧课程", "先进工作者", "先进集体", "校企",
+    "科研成果", "教育教学改革", "教改", "工程案例", "辅导员", "岗前培训",
+    "行业育人", "正版化", "周转房", "一号门", "三伏贴", "规章制度",
+    "防汛", "政府采购", "消防", "实验室安全", "值班表", "采购", "招投标",
+    "任前公示", "拟聘用", "拟立项", "出国研修", "成果转化", "留学生",
+    "公积金", "住房", "技能人才", "干部", "党员", "党支部", "中心组",
+    "津贴", "揭榜挂帅", "成果文库", "优质新刊", "学术著作",
+    "专业公示", "专业设置", "专业调整", "职称",
 )
-NOTICE_EXCLUDE_KEYWORDS = (
-    "留学生", "教研", "教职工", "青年教师", "教师岗", "师资",
-    "博士后", "拟聘用", "任前公示", "出国研修", "成果转化",
-    "周转房", "住房", "公积金", "正版化",
-)
-ADMIN_DEPT_TAGS = (
-    "工会", "人力资源部", "后管处", "基建处", "组织部", "统战部",
-    "纪检监察", "纪委", "党校", "离退休", "档案馆", "审计处",
-    "发展规划处", "采购", "招投标",
-)
-# 09-02b: 生活服务类词。行政处室（后管处/基建处）也会发学生关心的
-# 停电停水/班车通知，这些词优先于行政标签判定，避免被一刀切否决。
-UTILITY_KEYWORDS = (
+
+# 2) 强白名单：无歧义的学生/竞赛/生活词，先于部门否决
+#   （覆盖"博士生专项计划"这类行政部门下发的学生项目）
+WHITELIST_STRONG = (
+    # 比赛
+    "竞赛", "大赛", "比赛", "挑战赛", "挑战杯", "校赛", "创意赛",
+    "创新创业", "创新大赛", "创业计划", "选拔赛", "选拔",
+    # 生活服务
     "停电", "停水", "停气", "断网", "网络中断", "校园网", "供电", "供水",
-    "直饮水", "热水", "班车", "食堂", "超市",
+    "直饮水", "热水", "班车", "食堂", "超市", "水电", "收费", "收发",
+    "水池", "水箱", "清洗", "图书馆", "医院", "校园卡", "医保", "缴费",
+    "信号屏蔽", "邮箱", "VPN", "云平台", "快递", "门禁", "空调",
+    # 课程 / 学业
+    "选课", "补考", "缓考", "重修", "成绩", "考试", "自习",
+    "体测", "体质健康", "缓测", "四六级", "普通话", "免试攻读", "推免",
+    "保研", "考研", "答辩", "学位", "毕业", "报到", "注册", "开学",
+    "放假", "校历", "本科",
+    # 学生 / 综合
+    "学生", "本科生", "研究生", "博士生", "助学金", "奖学金", "贷款",
+    "勤工", "社团", "志愿者", "支教", "讲座", "实习", "实践", "评优",
+    "表彰", "招聘会", "宣讲会", "就业", "心理", "国际合作",
 )
 
+# 4) 弱白名单：宽泛词，放在部门否决之后
+#   （"暑假/网络/课程"在行政、科研部门通知里是噪音，不能先于部门否决放行）
+WHITELIST_WEAK = ("暑假", "寒假", "暑期", "网络", "课程")
 
-def is_student_notice(title):
-    """Keyword fast-path（判定顺序经过设计，勿随意调整）：
-    1. 排除词 → False（正版化/周转房等已知噪音，硬否决）；
-    2. 生活服务词 → True（后管处停电停水也是学生要看的）；
-    3. 行政部门标签 → False（纯行政噪音，不给 NB 翻案）；
-    4. 学生关键词 → True；
-    5. 其余 → False，交给 NB 分类器兜底（见 main）。"""
-    if any(w in title for w in NOTICE_EXCLUDE_KEYWORDS):
-        return False
-    if any(w in title for w in UTILITY_KEYWORDS):
-        return True
-    if any(tag in title for tag in ADMIN_DEPT_TAGS):
-        return False
-    return any(w in title for w in STUDENT_KEYWORDS)
+# 3) 纯行政/科研部门（硬否决；强白名单已先行放行"博士生专项"等学生项）
+NEG_DEPTS = (
+    "人文社科处", "人力资源部", "基建处", "工会", "科技转化中心",
+    "实验设备处", "测试中心", "组织部", "保卫处", "社会合作处",
+    "党委教师工作部", "襄阳示范区", "机关直属单位党委", "留学生管理服务中心",
+    "科发院", "三亚科教园", "宣传部",
+)
+
+# 5) 服务/学生部门（默认放行；黑名单已先行剔除 工勤/正版化/先进集体/三伏贴/周转房）
+POS_DEPTS = (
+    "网络中心", "后管处", "图书馆", "后勤集团", "医院", "医管办",
+    "财务处", "体育学院", "团委",
+)
+
+DEPT_RE = re.compile(r'^【([^】]{1,12})】')
 
 
-# 09-02b: 本地机器学习兜底层（零 API 成本）。
+def dept_of(title):
+    m = DEPT_RE.match(title)
+    return m.group(1) if m else ''
+
+
+def classify(title):
+    """分层判定，返回 'keep' | 'drop' | 'ml'（'ml' 交 NB 兜底）。"""
+    for w in BLACKLIST:
+        if w in title:
+            return 'drop'
+    for w in WHITELIST_STRONG:
+        if w in title:
+            return 'keep'
+    d = dept_of(title)
+    for nd in NEG_DEPTS:
+        if nd in d:
+            return 'drop'
+    for w in WHITELIST_WEAK:
+        if w in title:
+            return 'keep'
+    for pd in POS_DEPTS:
+        if pd in d:
+            return 'keep'
+    return 'ml'
+
+
+# 6) 本地机器学习兜底层（零 API 成本）。
 # 关键词白名单追不上通知措辞的变化（如"网上缴费""信号屏蔽""直饮水暂停"这类
 # 不含任何关键词的标题），参考 GitHub 上校园通知机器人（CampusPing 等）用
 # ML 判定相关性的思路，改为本地实现：字符 2/3-gram 多项式朴素贝叶斯，
@@ -121,10 +167,9 @@ def _train_nb():
 
 
 def ml_is_student(title):
-    """Local NB verdict for keyword-miss titles.
-    Returns (keep 0/1, log-odds margin). Threshold 2.5 tuned on the labeled set
-    (production view: keyword-missed docs only, LOO — recall 17/20, ~1 FP / 5 days).
-    Empty model (labels file missing) → (0, 0.0), i.e. fall back to keyword-only."""
+    """Local NB verdict for rule-missed titles (only 'ml' residual reaches here).
+    Returns (keep 0/1, log-odds margin). Threshold 2.5 tuned on the labeled set.
+    Empty model (labels file missing) → (0, 0.0), i.e. fall back to rule-only."""
     counts, meta = _train_nb()
     if not meta['ndocs'][0] or not meta['ndocs'][1]:
         return 0, 0.0
@@ -257,22 +302,22 @@ def format_message(notices):
 def main():
     try:
         notices = fetch_notice_list()
-        # 09-02b: 两级过滤——关键词快速通道 + 本地 NB 分类器兜底（零 API 成本）
-        kept_kw = [(d, t, u) for d, t, u in notices if is_student_notice(t)]
-        borderline = [(d, t, u) for d, t, u in notices if not is_student_notice(t)]
-        for d, t, u in borderline:
-            # 行政部门标签/教师向排除词 = 硬否决（生活服务词已在快速通道优先放行，
-            # 所以后管处停电停水不受影响），不给 NB 翻案机会
-            if any(tag in t for tag in ADMIN_DEPT_TAGS) or any(w in t for w in NOTICE_EXCLUDE_KEYWORDS):
-                print(f'[campus_daily] filter drop (hard): {t[:45]}', file=sys.stderr)
-                continue
-            pred, margin = ml_is_student(t)
-            if pred:
-                kept_kw.append((d, t, u))
-                print(f'[campus_daily] NB rescue (logodds={margin:.1f}): {t[:45]}', file=sys.stderr)
+        # 09-02c: 分层过滤（黑名单 → 强白名单 → 部门否决 → 弱白名单 → 服务部门 → NB 兜底）
+        kept = []
+        for d, t, u in notices:
+            verdict = classify(t)
+            if verdict == 'keep':
+                kept.append((d, t, u))
+            elif verdict == 'ml':
+                pred, margin = ml_is_student(t)
+                if pred:
+                    kept.append((d, t, u))
+                    print(f'[campus_daily] NB rescue (logodds={margin:.1f}): {t[:45]}', file=sys.stderr)
+                else:
+                    print(f'[campus_daily] filter drop (NB, logodds={margin:.1f}): {t[:45]}', file=sys.stderr)
             else:
-                print(f'[campus_daily] filter drop (kw+NB, logodds={margin:.1f}): {t[:45]}', file=sys.stderr)
-        notices = kept_kw
+                print(f'[campus_daily] filter drop (rule): {t[:45]}', file=sys.stderr)
+        notices = kept
         yesterday_notices = [(d, t, u) for d, t, u in notices if d == TARGET_DATE]
 
         # Skip items whose URL was already included in a previous campus daily run.
