@@ -648,7 +648,7 @@ async def deep_search(question: str = "", num: int = 8) -> str:
         return "Deep search failed: " + str(e)
 
 async def ocr_image(image_url: str = "", lang: str = "chi_sim+eng") -> str:
-    """Understand content of an image. Use when a user sends an image/picture/photo/screenshot. Uses the vision model (default GLM-4.5V, fallback active provider) to understand both text and visual content."""
+    """Understand content of an image. Use when a user sends an image/picture/photo/screenshot. Uses the vision model (default GLM-4.6V-Flash, fallback active provider) to understand both text and visual content."""
     if not image_url:
         return "Please provide an image URL."
     try:
