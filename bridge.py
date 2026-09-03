@@ -1997,18 +1997,23 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
         ]
 
         # ---- 识图调用（vision_*：默认智谱 GLM-4.6V-Flash，未配置回退 Sensenova）----
-        # 特性：Sensenova free 图片后端繁忙时挂 ~60s 后返 429；GLM 免费档更快更稳。故：
-        #   * 单次超时放宽到 110s（batch 层等 120s，能容纳）
-        #   * 429(服务端繁忙)/空 content 短等后重试（首试 + 至多 2 次），常能救回
+        # 特性：Sensenova free 图片后端繁忙时挂 ~60s 后返 429；GLM 免费档图片可用但偶发
+        #       瞬时 429「访问量过大」（秒回），限流窗口常持续 10-30s——固定短 sleep 重试
+        #       会整段撞在窗口里全败（09-03 13:19 实测 3×4s 全 429）。故：
+        #   * GLM 单次超时 50s（实测 3-15s 出结果），Sensenova 回退保留 110s（batch 等 120s）
+        #   * 429/空 content 用指数退避（4/9/16/25s）重试至多 5 次，覆盖 30s+ 限流窗口
         #   * 这类 transient 失败不计入熔断（服务端繁忙≠服务坏），仅网络层真故障才累计熔断
-        _VISION_TIMEOUT = 110.0
-        last_reason = "unknown"
-        desc = ""
+        _VISION_MAX_ATTEMPTS = 5
+        _VISION_BUSY_DELAYS = (4.0, 9.0, 16.0, 25.0)   # 429/服务端繁忙: 指数退避 (第1~4次失败后)
+        _VISION_SOFT_DELAYS = (2.0, 3.0, 5.0, 8.0)     # 网络/超时等: 温和退避
         _v_base = bot_config.vision_base_url
         _v_key = bot_config.vision_api_key
         _v_model = bot_config.vision_model
         _v_glm = bool(bot_config.glm_api_key)
-        for attempt in range(1, 4):  # 1-based，共 3 次
+        _VISION_TIMEOUT = 50.0 if _v_glm else 110.0
+        last_reason = "unknown"
+        desc = ""
+        for attempt in range(1, _VISION_MAX_ATTEMPTS + 1):  # 1-based
             try:
                 _payload = {
                     "model": _v_model,
@@ -2032,28 +2037,30 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
             except asyncio.TimeoutError:
                 last_reason = f"timeout(>{int(_VISION_TIMEOUT)}s)"
                 log.warning("Vision: attempt %d %s, retrying", attempt, last_reason)
-                if attempt < 3:
-                    await asyncio.sleep(3)
+                if attempt < _VISION_MAX_ATTEMPTS:
+                    await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
                 continue
             except Exception as _e:
                 last_reason = f"{type(_e).__name__}:{str(_e)[:100]}"
                 log.warning("Vision: attempt %d conn error (%s), retrying", attempt, last_reason)
-                if attempt < 3:
-                    await asyncio.sleep(2)
+                if attempt < _VISION_MAX_ATTEMPTS:
+                    await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
                 continue
 
             if _status == 429:
-                # Sensenova free 服务端繁忙——几秒后重试常能成功；不算真故障
+                # 服务端繁忙（Sensenova free 图片后端 / GLM-4.6V-Flash 瞬时「访问量过大」）——
+                # 指数退避后重试常能救回；不算真故障
                 last_reason = "429 server busy"
-                log.warning("Vision: attempt %d 429 server busy, retrying", attempt)
-                if attempt < 3:
-                    await asyncio.sleep(4)
+                log.warning("Vision: attempt %d 429 server busy, retrying (backoff %ss)",
+                            attempt, _VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)] if attempt < _VISION_MAX_ATTEMPTS else 0)
+                if attempt < _VISION_MAX_ATTEMPTS:
+                    await asyncio.sleep(_VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)])
                 continue
             if _status != 200:
                 last_reason = f"HTTP {_status}"
                 log.warning("Vision: attempt %d HTTP %d, retrying", attempt, _status)
-                if attempt < 3:
-                    await asyncio.sleep(2)
+                if attempt < _VISION_MAX_ATTEMPTS:
+                    await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
                 continue
 
             desc = ((_data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
@@ -2061,13 +2068,13 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
                 _VISION_FAILS = 0  # 成功清零，避免成功间夹带的失败永远累加
                 log.info("Vision: got %d chars description", len(desc))
                 return desc.strip()
-            # 空 content：模型偶发对图片静默返回空，重试一次常可救（08-15 已实测）
+            # 空 content：模型偶发对图片静默返回空，重试常可救（08-15 已实测）——按繁忙型指数退避
             last_reason = "empty content"
             log.warning("Vision: attempt %d empty content, retrying", attempt)
-            if attempt < 3:
-                await asyncio.sleep(2)
+            if attempt < _VISION_MAX_ATTEMPTS:
+                await asyncio.sleep(_VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)])
 
-        # 3 次未成。transient(429/超时/空) 属服务端繁忙，不熔断、不累加失败计数，
+        # 5 次未成。transient(429/超时/空) 属服务端繁忙，不熔断、不累加失败计数，
         # 避免 Sensenova free 繁忙时把识图长期关掉；下次图片仍会再试。
         log.warning("Vision: all attempts failed (last: %s); transient NOT counted to breaker", last_reason)
         _VISION_FAILS = 0
