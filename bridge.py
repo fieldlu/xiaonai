@@ -39,15 +39,15 @@ async def _run_pending_batch(batch_key, created_at):
         # 晚加入合并: 从此刻起该 key 的新消息并入本轮, 不再开新 batch
         _processing[batch_key] = True
         try:
-            # Wait for in-flight MiMo vision so images are understood before replying.
-            # (Vision takes ~30s; without this, the batch fires with only the text and
-            #  the bot replies "没看到图片".)
+            # Wait for in-flight vision so images are understood before replying.
+            # (Sensenova free 多模态识图响应慢，常需 60-110s；等够才不 reply "没看到图片"。)
             key = batch_key
             if key in pending_vision and pending_vision[key]:
                 jobs = pending_vision.pop(key, [])
                 futures = [j["future"] for j in jobs]
                 try:
-                    await asyncio.wait(futures, timeout=45.0)
+                    # 120s：容纳 Sensenova free 识图慢响应（单次超时 110s + 429 重试余量）
+                    await asyncio.wait(futures, timeout=120.0)
                 except Exception:
                     pass
                 for j in jobs:
@@ -1946,12 +1946,17 @@ _VISION_DISABLED_UNTIL = 0.0
 
 
 async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
-    """Use MiMo multimodal vision to understand an image. Returns description or empty string."""
+    """Use the current multimodal model (Sensenova) to understand an image.
+
+    返回描述文本或空串。Sensenova free 多模态响应慢(60-110s)且偶发 429 server busy：
+    内部对 429/超时/空响应做有限重试；这些"服务端繁忙"型失败不触发熔断（只记日志），
+    仅网络层真故障(连接拒绝等)累计多次才短暂熔断，避免把识图长期关掉。
+    """
     import base64, time as _time
     from config import bot_config
     global _VISION_FAILS, _VISION_DISABLED_UNTIL
 
-    # 熔断守卫：MiMo 持续失败时快速短路，不阻塞消息路径
+    # 熔断守卫：仅真故障(非 transient)连续触发时短路，不阻塞消息路径
     if _time.time() < _VISION_DISABLED_UNTIL:
         log.info("Vision: breaker open, skipping vision")
         return ""
@@ -1990,32 +1995,18 @@ async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
             {"type": "text", "text": user_prompt}
         ]
 
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post(
-                f"{bot_config.active_base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {bot_config.active_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": bot_config.active_model,
-                    "messages": [{"role": "user", "content": user_content}],
-                    "max_tokens": 2000,
-                    # MiMo/Sensenova 默认 thinking ON 会吞 max_tokens；关掉让预算全给描述。
-                    "thinking": {"type": "disabled"},
-                },
-            ) as resp:
-                data = await resp.json()
-                description = data["choices"][0]["message"]["content"]
-                if description:
-                    _VISION_FAILS = 0  # 调用成功清零，避免 3 次成功间夹带的失败永远累加
-                    log.info("Vision: got %d chars description", len(description))
-                    return description.strip()
-                # 08-15: MiMo 偶发对图片返回空 content（无描述无错误，静默）→ 重试一次。
-                # 实测同一张图重发后成功（15:57:28 got 349 chars），偶发空返回重试可救。
-                log.warning("Vision: empty content from MiMo, retrying once...")
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session2:
-                    async with session2.post(
+        # ---- 识图调用（Sensenova free 多模态）----
+        # 特性：单次响应常需 60-110s，偶发 429 server busy / 空 content。故：
+        #   * 单次超时放宽到 110s（batch 层等 120s，能容纳）
+        #   * 429(服务端繁忙)/空 content 短等后重试（首试 + 至多 2 次），常能救回
+        #   * 这类 transient 失败不计入熔断（服务端繁忙≠服务坏），仅网络层真故障才累计熔断
+        _VISION_TIMEOUT = 110.0
+        last_reason = "unknown"
+        desc = ""
+        for attempt in range(1, 4):  # 1-based，共 3 次
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=_VISION_TIMEOUT)) as _sess:
+                    async with _sess.post(
                         f"{bot_config.active_base_url}/chat/completions",
                         headers={
                             "Authorization": f"Bearer {bot_config.active_api_key}",
@@ -2025,25 +2016,63 @@ async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
                             "model": bot_config.active_model,
                             "messages": [{"role": "user", "content": user_content}],
                             "max_tokens": 2000,
+                            # 默认 thinking ON 会吞 max_tokens；关掉让预算全给描述。
                             "thinking": {"type": "disabled"},
                         },
-                    ) as resp2:
-                        data2 = await resp2.json()
-                desc2 = data2["choices"][0]["message"]["content"]
-                if desc2:
-                    _VISION_FAILS = 0
-                    log.info("Vision: got %d chars on retry", len(desc2))
-                    return desc2.strip()
-                _VISION_FAILS += 1
-                log.warning("Vision: empty on retry too (breaker count %d)", _VISION_FAILS)
-                return ""
+                    ) as _resp:
+                        _status = _resp.status
+                        _data = await _resp.json()
+            except asyncio.TimeoutError:
+                last_reason = f"timeout(>{int(_VISION_TIMEOUT)}s)"
+                log.warning("Vision: attempt %d %s, retrying", attempt, last_reason)
+                if attempt < 3:
+                    await asyncio.sleep(3)
+                continue
+            except Exception as _e:
+                last_reason = f"{type(_e).__name__}:{str(_e)[:100]}"
+                log.warning("Vision: attempt %d conn error (%s), retrying", attempt, last_reason)
+                if attempt < 3:
+                    await asyncio.sleep(2)
+                continue
+
+            if _status == 429:
+                # Sensenova free 服务端繁忙——几秒后重试常能成功；不算真故障
+                last_reason = "429 server busy"
+                log.warning("Vision: attempt %d 429 server busy, retrying", attempt)
+                if attempt < 3:
+                    await asyncio.sleep(4)
+                continue
+            if _status != 200:
+                last_reason = f"HTTP {_status}"
+                log.warning("Vision: attempt %d HTTP %d, retrying", attempt, _status)
+                if attempt < 3:
+                    await asyncio.sleep(2)
+                continue
+
+            desc = ((_data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            if desc:
+                _VISION_FAILS = 0  # 成功清零，避免成功间夹带的失败永远累加
+                log.info("Vision: got %d chars description", len(desc))
+                return desc.strip()
+            # 空 content：模型偶发对图片静默返回空，重试一次常可救（08-15 已实测）
+            last_reason = "empty content"
+            log.warning("Vision: attempt %d empty content, retrying", attempt)
+            if attempt < 3:
+                await asyncio.sleep(2)
+
+        # 3 次未成。transient(429/超时/空) 属服务端繁忙，不熔断、不累加失败计数，
+        # 避免 Sensenova free 繁忙时把识图长期关掉；下次图片仍会再试。
+        log.warning("Vision: all attempts failed (last: %s); transient NOT counted to breaker", last_reason)
+        _VISION_FAILS = 0
+        return ""
     except Exception as e:
+        # 网络层/解析层真故障（非 transient）才累计熔断
         _VISION_FAILS += 1
-        if _VISION_FAILS >= 3:
+        if _VISION_FAILS >= 5:
             _VISION_DISABLED_UNTIL = _time.time() + 300
             _VISION_FAILS = 0
-            log.error("Vision: 3 failures, breaker open 5min (last: %s)", str(e)[:150])
-        log.error("Vision: MiMo vision failed: %s", str(e)[:200])
+            log.error("Vision: 5 real failures, breaker open 5min (last: %s)", str(e)[:150])
+        log.error("Vision: vision failed (real error): %s", str(e)[:200])
         return ""
 
 
