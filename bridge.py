@@ -676,6 +676,56 @@ async def _send_multi_message(ws, msg_type, target_id, text):
     return sent_any
 
 
+def _split_reply_blocks_keep_lines(text):
+    """09-03: 结构化回复（资源列表）分块——按空行分段，块内换行原样保留。
+    与 _split_reply_blocks 的关键区别：不做行间空格拼接/引号合并（那些逻辑会把
+    '文件名 [大小]\\n链接' 压回 '文件名 [大小]链接' 的单行丑样）。返回每个空行
+    块内部仍带 \\n 的多行字符串。"""
+    lines = [ln.strip() for ln in text.splitlines()]
+    blocks, current = [], []
+    for ln in lines:
+        if not ln:
+            if current:
+                blocks.append("\n".join(current))
+                current = []
+            continue
+        current.append(ln)
+    if current:
+        blocks.append("\n".join(current))
+    return blocks
+
+
+async def _send_resource_list(ws, msg_type, target_id, text):
+    """09-03: 资源站列表专用发送。普通散文走 _send_multi_message（≤4 条、行间空格
+    拼接、像真人分段发）；但结构化列表一旦被空格拼接就退回 'xx.pdf [1MB]https://
+    … yy.pdf [2MB]https://…' 挤一行还粘连的丑样（14:24 力学实测复现，_split_reply_
+    segments 的 join 把排版函数成果还原）。此函数按空行块逐条发送、块内保留换行，
+    QQ 里每条资料呈现为两行气泡：
+        文件名 [大小]
+        https://resource.haoli.site/?id=xxx
+    逐条带节奏发出，排版稳定。"""
+    import random as _rand
+    blocks = _split_reply_blocks_keep_lines(text)
+    if len(blocks) <= 1:
+        return await send_qq_message(ws, msg_type, target_id, text)
+    sent_any = False
+    for i, blk in enumerate(blocks):
+        ok = await send_qq_message(ws, msg_type, target_id, blk)
+        if not ok:
+            api_action = "send_group_msg" if msg_type == "group" else "send_private_msg"
+            api_params = {"group_id": target_id, "message": blk} if msg_type == "group" else {"user_id": target_id, "message": blk}
+            try:
+                result = await napcat_api(api_action, api_params, timeout=10)
+                ok = result.get("status") == "ok"
+            except Exception:
+                ok = False
+        if ok:
+            sent_any = True
+        if i < len(blocks) - 1:
+            await asyncio.sleep(_rand.uniform(0.3, 0.8))
+    return sent_any
+
+
 async def send_qq_message(ws, msg_type, target_id, text):
     if len(text) > 1500:
         text = text[:1500]
@@ -2613,7 +2663,12 @@ async def handle_qq_message(ws, data):
             if not response or not response.strip():
                 log.info("Reply cleaned to empty, using graceful fallback")
                 response = "唔…刚才没组织好，麻烦再问一次或者换个说法~"
-        ok = await _send_multi_message(ws, msg_type, gid if gid else uid, response)
+        # 09-03: 资源站列表回复走专用发送（块内保留换行、逐条发出），普通散文仍走
+        # _send_multi_message。结构化列表经后者会被空格拼接/≤4 条压缩压回挤行丑样。
+        if _RES_URL_RE.search(response):
+            ok = await _send_resource_list(ws, msg_type, gid if gid else uid, response)
+        else:
+            ok = await _send_multi_message(ws, msg_type, gid if gid else uid, response)
         if not ok:
             log.warning("Send failed, retrying via napcat_api...")
             target = gid if gid else uid
