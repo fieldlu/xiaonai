@@ -230,6 +230,41 @@ def _fix_broken_url_spacing(text):
     return text
 
 
+_RES_URL_RE = re.compile(r'https://resource\.haoli\.site/\?id=\d+')
+
+
+def _format_resource_links(text):
+    """09-03: 资源站列表排版兜底（幂等）。agent(Sensenova) 转述多条资料时会把
+    条目压成一行、文件名/大小/链接全粘连（'xx.pdf [1MB]https://.../?id=1 yy.pdf
+    [2MB]https://.../?id=2'），QQ 里一团糟。这里把每个条目拆为两行（文件名+大小 /
+    链接），条目间留空行；链接已全部独占行首时视为排版良好，原样返回。"""
+    if not text or 'resource.haoli.site' not in text:
+        return text
+    _total = len(_RES_URL_RE.findall(text))
+    _linestart = len(re.findall(r'(?m)^[ \t]*https://resource\.haoli\.site/\?id=\d+', text))
+    if _total == _linestart:
+        return text
+    # 1) 链接前断行：处理 ']https' 直接粘连与 '] https' 空格，已在行首的跳过
+    text = re.sub(r'(?<=\S)(?=[ \t]*https://resource\.haoli\.site/\?id=\d+)', '\n', text)
+    # 2) 链接后断行：空格后跟内容（下一条目/说明），或直接粘连非句末标点。
+    #    (?![0-9]) 防 \d+ 回溯到 ID 中间把末位数字断到下一行（34573 → 3457 + 3）。
+    text = re.sub(r'(resource\.haoli\.site/\?id=\d+)[ \t]+(?=\S)', r'\1\n', text)
+    text = re.sub(r'(resource\.haoli\.site/\?id=\d+(?![0-9]))(?=[^\s\d，。、；：！？·—…～）】」』”’"\'（【「『])', r'\1\n', text)
+    # 3) 清理行首（仅链接行）/行尾多余空白
+    text = re.sub(r'(?m)^[ \t]+(?=https://resource\.haoli\.site)', '', text)
+    text = re.sub(r'[ \t]+$', '', text)
+    # 4) 每个条目（URL 行）后留空行分隔，压缩多余空行
+    _lines = text.split('\n')
+    _out = []
+    for _i, _ln in enumerate(_lines):
+        _out.append(_ln)
+        if _RES_URL_RE.fullmatch(_ln.strip()) and any(_x.strip() for _x in _lines[_i + 1:]):
+            _out.append('')
+    text = '\n'.join(_out)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 _memory_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 DOWNLOAD_DIR = os.path.join(_PROJECT_ROOT, "data", "uploads")
@@ -2524,6 +2559,7 @@ async def handle_qq_message(ws, data):
         response = strip_no_reply(response)
         response = strip_thinking_leak(response)
         response = _fix_broken_url_spacing(response)
+        response = _format_resource_links(response)
         response = _convert_at_mentions(response)
         # 08-15: 回复相关性兜底——识图消息若回复与描述零重叠（疑似串台跑题），重试一次
         if _img_desc_for_relevance and response and response.strip():
@@ -2543,6 +2579,8 @@ async def handle_qq_message(ws, data):
                         _rt = strip_sensitive(_rt)
                         _rt = strip_no_reply(_rt)
                         _rt = strip_thinking_leak(_rt)
+                        _rt = _fix_broken_url_spacing(_rt)
+                        _rt = _format_resource_links(_rt)
                         _rt = _convert_at_mentions(_rt)
                         if _rt and _rt.strip() and _reply_relevance_check(_img_desc_for_relevance, _rt):
                             response = _rt
@@ -2565,6 +2603,8 @@ async def handle_qq_message(ws, data):
                     _r2 = strip_sensitive(_r2)
                     _r2 = strip_no_reply(_r2)
                     _r2 = strip_thinking_leak(_r2)
+                    _r2 = _fix_broken_url_spacing(_r2)
+                    _r2 = _format_resource_links(_r2)
                     _r2 = _convert_at_mentions(_r2)
                     if _r2 and _r2.strip():
                         response = _r2
