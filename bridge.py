@@ -1485,29 +1485,38 @@ def _reply_relevance_check(desc_text, reply):
         from config import bot_config
         system = ("判断回复是否在谈图片内容。只输出：相关 或 不相关。")
         user = ("[图]\n" + desc_text[:800] + "\n\n[回复]\n" + reply[:600] + "\n\n输出：")
-        # 08-15: 判断器原走 mimo-proxy (:8898) + max_tokens 500——直连上游时 MiMo
-        # thinking 压不住导致 content 空/finish=length；proxy 强制 thinking 后 content 正常。
-        # 09-03: 切 Sensenova 后直连已能 thinking.disabled 正常快速返回，无需 proxy 中间层；
-        # 故 provider=sensenova 时直连 active 端点，切回 mimo 时仍走 8898 proxy 保持原语义。
-        _use_proxy = bot_config.llm_provider != "sensenova"
-        _judge_url = ("http://127.0.0.1:8898/chat/completions" if _use_proxy
-                      else bot_config.active_base_url + "/chat/completions")
-        _judge_key = (bot_config.mimo_api_key if _use_proxy else bot_config.active_api_key)
-        _judge_model = (bot_config.mimo_model if _use_proxy else bot_config.active_model)
+        # 09-03: 判断器改走 GLM vision 通道（vision_*）。原因：judge 若依赖 active（Sensenova），
+        # 在 Sensenova 挂起/抽风期会误判——13:28 曾把明显相关的识图回复判 off-topic 丢弃，
+        # 触发 90s×4 超时重试（用户等 6 分钟无回复）。GLM 免费健康秒回，与回复生成通道解耦；
+        # 判断器不该依赖被判断的同一条通道。GLM 无 key 时才回退原逻辑。
+        _judge_is_glm = bool(bot_config.glm_api_key)
+        if _judge_is_glm:
+            _judge_url = bot_config.vision_base_url + "/chat/completions"
+            _judge_key = bot_config.vision_api_key
+            _judge_model = bot_config.vision_model
+        else:
+            _use_proxy = bot_config.llm_provider != "sensenova"
+            _judge_url = ("http://127.0.0.1:8898/chat/completions" if _use_proxy
+                          else bot_config.active_base_url + "/chat/completions")
+            _judge_key = (bot_config.mimo_api_key if _use_proxy else bot_config.active_api_key)
+            _judge_model = (bot_config.mimo_model if _use_proxy else bot_config.active_model)
+        _judge_payload = {
+            "model": _judge_model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": 500,
+            "temperature": 0,
+        }
+        # Sensenova/MiMo 需 thinking.disabled（否则 max_tokens 被吞/响应慢）；GLM 不传该字段
+        if not _judge_is_glm:
+            _judge_payload["thinking"] = {"type": "disabled"}
         with httpx.Client(timeout=25.0) as client:
             r = client.post(
                 _judge_url,
                 headers={"Authorization": "Bearer " + _judge_key, "Content-Type": "application/json"},
-                json={
-                    "model": _judge_model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    "max_tokens": 500,
-                    "temperature": 0,
-                    "thinking": {"type": "disabled"},
-                },
+                json=_judge_payload,
             )
             data = r.json()
         _msg = data["choices"][0]["message"]
