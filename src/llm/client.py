@@ -233,10 +233,10 @@ class LLMClient:
             print(f"[kb] Load error: {e}")
 
         self.client = AsyncOpenAI(
-            api_key=bot_config.mimo_api_key,
-            base_url=bot_config.mimo_base_url,
+            api_key=bot_config.active_api_key,
+            base_url=bot_config.active_base_url,
         )
-        self.model = "mimo-v2.5"
+        self.model = bot_config.active_model
 
     def refresh_kb(self):
         """Reload knowledge base after runtime injections."""
@@ -269,6 +269,8 @@ class LLMClient:
         msgs = [{"role": "system", "content": SYSTEM_PROMPT + mood_content + (self.kb_context if hasattr(self, "kb_context") else "")}] + messages
         max_tok = max_tokens if max_tokens > 0 else 8192
         kwargs = {"model": self.model, "messages": msgs, "max_tokens": max_tok, "timeout": 25.0}
+        # MiMo/Sensenova 默认 thinking ON 会吞 max_tokens 导致 content 空；关掉让预算全给正文。
+        kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"

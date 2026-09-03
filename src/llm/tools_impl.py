@@ -40,16 +40,17 @@ async def _llm_translate_batch(texts: list[str]) -> dict[str, str]:
     try:
         async with httpx.AsyncClient(timeout=10) as cli:
             resp = await cli.post(
-                f"{bot_config.mimo_base_url}/chat/completions",
+                f"{bot_config.active_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {bot_config.mimo_api_key}",
+                    "Authorization": f"Bearer {bot_config.active_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "mimo-v2.5",
+                    "model": bot_config.active_model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 200,
                     "temperature": 0,
+                    "thinking": {"type": "disabled"},
                 },
             )
             data = resp.json()
@@ -134,16 +135,17 @@ async def _translate_wind_batch(dirs: list[str]) -> list[str]:
                 try:
                     async with httpx.AsyncClient(timeout=10) as cli:
                         resp = await cli.post(
-                            f"{bot_config.mimo_base_url}/chat/completions",
+                            f"{bot_config.active_base_url}/chat/completions",
                             headers={
-                                "Authorization": f"Bearer {bot_config.mimo_api_key}",
+                                "Authorization": f"Bearer {bot_config.active_api_key}",
                                 "Content-Type": "application/json",
                             },
                             json={
-                                "model": "mimo-v2.5",
+                                "model": bot_config.active_model,
                                 "messages": [{"role": "user", "content": prompt}],
                                 "max_tokens": 100,
                                 "temperature": 0,
+                                "thinking": {"type": "disabled"},
                             },
                         )
                         data = resp.json()
@@ -257,16 +259,17 @@ async def _get_smart_advice(city: str, temp: str, feels: str, humidity: str,
     try:
         async with httpx.AsyncClient(timeout=10) as cli:
             resp = await cli.post(
-                f"{bot_config.mimo_base_url}/chat/completions",
+                f"{bot_config.active_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {bot_config.mimo_api_key}",
+                    "Authorization": f"Bearer {bot_config.active_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "mimo-v2.5",
+                    "model": bot_config.active_model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 120,
                     "temperature": 0.7,
+                    "thinking": {"type": "disabled"},
                 },
             )
             data = resp.json()
@@ -677,15 +680,16 @@ async def ocr_image(image_url: str = "", lang: str = "chi_sim+eng") -> str:
 
         async with httpx.AsyncClient(timeout=60) as cli:
             resp = await cli.post(
-                f"{bot_config.mimo_base_url}/chat/completions",
+                f"{bot_config.active_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {bot_config.mimo_api_key}",
+                    "Authorization": f"Bearer {bot_config.active_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "mimo-v2.5",
+                    "model": bot_config.active_model,
                     "messages": [{"role": "user", "content": user_content}],
                     "max_tokens": 2000,
+                    "thinking": {"type": "disabled"},
                 },
             )
             data = resp.json()
@@ -1157,9 +1161,9 @@ async def _summarize_news(articles_text: str) -> str:
     try:
         from config import bot_config
         async with httpx.AsyncClient(timeout=25) as cli:
-            r = await cli.post(f"{bot_config.mimo_base_url}/chat/completions",
-                json={"model":"mimo-v2.5","messages":[{"role":"user","content":prompt}],"max_tokens":1024},
-                headers={"Authorization": f"Bearer {bot_config.mimo_api_key}"})
+            r = await cli.post(f"{bot_config.active_base_url}/chat/completions",
+                json={"model":bot_config.active_model,"messages":[{"role":"user","content":prompt}],"max_tokens":1024,"thinking":{"type":"disabled"}},
+                headers={"Authorization": f"Bearer {bot_config.active_api_key}"})
             result = r.json()["choices"][0]["message"]["content"].strip()
             if result: return result
     except Exception as e:

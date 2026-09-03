@@ -2,7 +2,7 @@
 
 # 🤖 XiaoNai（小奈）
 
-**一个在班级群长大的 AI 群助手** —— 基于 NapCat + OpenClaw + MiMo 的多功能 QQ 群聊机器人
+**一个在班级群长大的 AI 群助手** —— 基于 NapCat + OpenClaw + 大模型的多功能 QQ 群聊机器人（模型可配置，默认 SenseNova，支持 MiMo 备选）
 
 **🏫 武汉理工大学（WHUT）定制版** —— 深度对接 whut.edu.cn 校园系统（CAS 登录 / WebVPN / 招生 API / 校园通知）
 
@@ -29,10 +29,10 @@ XiaoNai 诞生于一个真实的大学班级群，在数千条真实消息中迭
 
 | 能力 | 说明 |
 |------|------|
-| 🧠 **知识库问答** | 多路检索（BM25 + 字符语义 TF-IDF）+ MiMo 查询改写，口语化问题也能命中正确文档 |
-| 🛠 **工具路由** | MiMo 意图识别 → 9 类对话路由（招生计划 / 录取分数 / 校园通知 / 资源 / 知识库 / 考试倒计时 / 论文 / 定时提醒 / 无需工具），另有 38 个 function-calling 工具定义 |
+| 🧠 **知识库问答** | 多路检索（BM25 + 字符语义 TF-IDF）+ 大模型查询改写，口语化问题也能命中正确文档 |
+| 🛠 **工具路由** | 大模型意图识别 → 9 类对话路由（招生计划 / 录取分数 / 校园通知 / 资源 / 知识库 / 考试倒计时 / 论文 / 定时提醒 / 无需工具），另有 38 个 function-calling 工具定义 |
 | 📅 **定时推送** | 天气、地震预警、校园通知、考试倒计时（scheduler 独立进程，**零 LLM 依赖**，欠费不影响） |
-| 🖼 **图片识图** | MiMo 原生多模态，自然口语转述，空返回自动重试 |
+| 🖼 **图片识图** | 原生多模态（自动识别图片/表情/语音转文字），自然口语转述，空返回自动重试 |
 | 💾 **三层记忆** | 会话记忆 / resume 摘要 / 长期笔记，跨 session 记得每个用户 |
 | ❤️ **好感度引擎** | 亲密度随互动动态变化（六维雷达图），影响回复语气，像真人一样有温度 |
 | ⏰ **定时提醒** | 自然语言设置提醒（"明早9点提醒我开会"），班级群/私聊均可 |
@@ -54,7 +54,7 @@ NapCat (QQ 客户端, OneBot v11, WS :3001)
 │                bridge.py (消息桥接)                    │
 │                                                      │
 │  BATCH 合并 → 去重 → 安全过滤 → 识图                  │
-│    → MiMo 工具路由 → 知识库注入 → 执行工具              │
+│    → LLM 工具路由 → 知识库注入 → 执行工具               │
 │    → OpenClaw Agent 生成回复 → 分段发送               │
 └──────────────┬──────────────────┬───────────────────┘
                │                  │
@@ -158,7 +158,7 @@ xiaonai/
 |------|------|
 | Python | 3.10+ |
 | [NapCat](https://napneko.github.io/) | 最新（OneBot v11 WebSocket） |
-| LLM API | OpenAI 兼容端点（默认 MiMo V2.5，任意提供商可用） |
+| LLM API | OpenAI 兼容端点（默认 SenseNova 6.8-flash-lite，可切回 MiMo V2.5；任意 OpenAI 兼容提供商可用） |
 | [OpenClaw](https://openclaw.ai)（可选） | Agent 引擎，驱动人格回复 |
 
 ### 1. 安装
@@ -175,7 +175,9 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # 编辑 .env，填入：
-#   MIMO_API_KEY        —— LLM API Key（必填）
+#   LLM_PROVIDER        —— 主模型提供者（sensenova 或 mimo，默认 sensenova）
+#   SENSENOVA_API_KEY   —— SenseNova Key（LLM_PROVIDER=sensenova 时必填）
+#   MIMO_API_KEY        —— MiMo Key（LLM_PROVIDER=mimo 或作为备选时）
 #   BOT_ADMINS          —— 管理员 QQ 号（必填）
 #   QW_API_KEY / QW_API_HOST —— 和风天气（可选，天气/预警推送用）
 #   WHUT_USERNAME / WHUT_PASSWORD —— 校内系统（可选）

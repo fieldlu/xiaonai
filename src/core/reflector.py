@@ -20,15 +20,18 @@ logger = logging.getLogger(__name__)
 
 ADMIN_QQ = ADMIN_QQ_PLACEHOLDER
 _reflect_llm = None
+_reflect_llm_provider = None
 
 
 def _get_llm():
-    global _reflect_llm
-    if _reflect_llm is None:
+    global _reflect_llm, _reflect_llm_provider
+    # provider 切换后重建 client（旧 client 仍绑着上一 provider 的端点/key）
+    if _reflect_llm is None or _reflect_llm_provider != bot_config.llm_provider:
         _reflect_llm = AsyncOpenAI(
-            api_key=bot_config.mimo_api_key,
-            base_url=bot_config.mimo_base_url,
+            api_key=bot_config.active_api_key,
+            base_url=bot_config.active_base_url,
         )
+        _reflect_llm_provider = bot_config.llm_provider
     return _reflect_llm
 
 
@@ -36,12 +39,13 @@ async def _llm_reflect(prompt: str, user_text: str) -> Optional[str]:
     """Call DeepSeek for lightweight reflection. Returns text or None."""
     try:
         resp = await _get_llm().chat.completions.create(
-            model="mimo-v2.5",
+            model=bot_config.active_model,
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_text},
             ],
             temperature=0.3, max_tokens=300, timeout=10.0,
+            extra_body={"thinking": {"type": "disabled"}},
         )
         content = resp.choices[0].message.content
         print("[reflect_mini] LLM returned: " + str(content)[:200] if content else "[reflect_mini] LLM returned: None/Empty")

@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from config import bot_config
+
 
 COMPLEX_KW = ["analyze", "compare", "explain", "why", "how", "difference",
               "分析", "比较", "解释", "为什么", "怎么", "如何", "区别",
@@ -84,9 +86,9 @@ async def _single_call(client, system_prompt, user_msg, context, tools, tool_imp
     messages.append({"role": "user", "content": user_msg})
     try:
         resp = await client.chat.completions.create(
-            model="mimo-v2.5", messages=messages,
+            model=bot_config.active_model, messages=messages,
             tools=tools, temperature=0.8, max_tokens=600,
-            timeout=15.0
+            timeout=15.0, extra_body={"thinking": {"type": "disabled"}}
         )
     except Exception:
         return "唔……小奈刚才走神了一下下，可以再说一次吗？(｡•́︿•̀｡)"
@@ -142,9 +144,9 @@ async def _handle_tools(client, messages, assistant_msg, tools, tool_impl, syste
                 "content": str(result)
             })
         resp = await client.chat.completions.create(
-            model="mimo-v2.5", messages=messages,
+            model=bot_config.active_model, messages=messages,
             tools=tools, temperature=0.8, max_tokens=600,
-            timeout=15.0
+            timeout=15.0, extra_body={"thinking": {"type": "disabled"}}
         )
         choice = resp.choices[0]
         if choice.message.content and not choice.message.tool_calls:

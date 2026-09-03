@@ -975,10 +975,10 @@ def _route_tool_with_mimo(msg):
         )
         with httpx.Client(timeout=10.0) as client:
             r = client.post(
-                bot_config.mimo_base_url + "/chat/completions",
-                headers={"Authorization": "Bearer " + bot_config.mimo_api_key, "Content-Type": "application/json"},
+                bot_config.active_base_url + "/chat/completions",
+                headers={"Authorization": "Bearer " + bot_config.active_api_key, "Content-Type": "application/json"},
                 json={
-                    "model": "mimo-v2.5",
+                    "model": bot_config.active_model,
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": msg[:500]},
@@ -1171,10 +1171,10 @@ def _rewrite_kb_query(q):
         )
         with httpx.Client(timeout=15.0) as client:
             r = client.post(
-                bot_config.mimo_base_url + "/chat/completions",
-                headers={"Authorization": "Bearer " + bot_config.mimo_api_key, "Content-Type": "application/json"},
+                bot_config.active_base_url + "/chat/completions",
+                headers={"Authorization": "Bearer " + bot_config.active_api_key, "Content-Type": "application/json"},
                 json={
-                    "model": "mimo-v2.5",
+                    "model": bot_config.active_model,
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": q},
@@ -1485,15 +1485,21 @@ def _reply_relevance_check(desc_text, reply):
         from config import bot_config
         system = ("判断回复是否在谈图片内容。只输出：相关 或 不相关。")
         user = ("[图]\n" + desc_text[:800] + "\n\n[回复]\n" + reply[:600] + "\n\n输出：")
-        # 08-15: 判断器走 mimo-proxy (:8898) + max_tokens 500——直连上游时 MiMo
+        # 08-15: 判断器原走 mimo-proxy (:8898) + max_tokens 500——直连上游时 MiMo
         # thinking 压不住导致 content 空/finish=length；proxy 强制 thinking 后 content 正常。
-        # timeout 25s：proxy 首次真实生成约 15s（缓存命中后快）
+        # 09-03: 切 Sensenova 后直连已能 thinking.disabled 正常快速返回，无需 proxy 中间层；
+        # 故 provider=sensenova 时直连 active 端点，切回 mimo 时仍走 8898 proxy 保持原语义。
+        _use_proxy = bot_config.llm_provider != "sensenova"
+        _judge_url = ("http://127.0.0.1:8898/chat/completions" if _use_proxy
+                      else bot_config.active_base_url + "/chat/completions")
+        _judge_key = (bot_config.mimo_api_key if _use_proxy else bot_config.active_api_key)
+        _judge_model = (bot_config.mimo_model if _use_proxy else bot_config.active_model)
         with httpx.Client(timeout=25.0) as client:
             r = client.post(
-                "http://127.0.0.1:8898/chat/completions",
-                headers={"Authorization": "Bearer " + bot_config.mimo_api_key, "Content-Type": "application/json"},
+                _judge_url,
+                headers={"Authorization": "Bearer " + _judge_key, "Content-Type": "application/json"},
                 json={
-                    "model": "mimo-v2.5",
+                    "model": _judge_model,
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
@@ -1854,6 +1860,7 @@ def _is_english_reasoning(text):
 
 
 async def call_openclaw(session_key, user_name, message, role, group_id=0):
+    from config import bot_config  # 09-02: 人格层模型随 llm_provider 联动（Sensenova/MiMo 一键回切）
     # 08-15: AT/PT 从 240/260 降到 90/95——服务端缓存串台会令 agent 死循环，
     # 原超时下单次锁死 4 分钟、4 次重试约 17 分钟。降超时让失败更快暴露。
     AT = 90; PT = 95; MR = 4
@@ -1875,7 +1882,7 @@ async def call_openclaw(session_key, user_name, message, role, group_id=0):
                                "不要输出任何英文分析/思考过程/搜索计划。）")
             msg = build_agent_message(role, user_name, message_cur, group_id)
             proc = await asyncio.create_subprocess_exec(
-                "openclaw", "agent", "--agent", "main", "--model", "mimo/mimo-v2.5",
+                "openclaw", "agent", "--agent", "main", "--model", bot_config.active_openclaw_model,
                 "--thinking", "off",
                 "--session-key", session_key,
                 "--message", msg, "--json", "--timeout", str(AT),
@@ -1985,17 +1992,16 @@ async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
 
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
             async with session.post(
-                f"{bot_config.mimo_base_url}/chat/completions",
+                f"{bot_config.active_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {bot_config.mimo_api_key}",
+                    "Authorization": f"Bearer {bot_config.active_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "mimo-v2.5",
+                    "model": bot_config.active_model,
                     "messages": [{"role": "user", "content": user_content}],
                     "max_tokens": 2000,
-                    # MiMo v2.5 defaults thinking ON which eats max_tokens; disable
-                    # so the full budget goes to the image description.
+                    # MiMo/Sensenova 默认 thinking ON 会吞 max_tokens；关掉让预算全给描述。
                     "thinking": {"type": "disabled"},
                 },
             ) as resp:
@@ -2010,13 +2016,13 @@ async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
                 log.warning("Vision: empty content from MiMo, retrying once...")
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session2:
                     async with session2.post(
-                        f"{bot_config.mimo_base_url}/chat/completions",
+                        f"{bot_config.active_base_url}/chat/completions",
                         headers={
-                            "Authorization": f"Bearer {bot_config.mimo_api_key}",
+                            "Authorization": f"Bearer {bot_config.active_api_key}",
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "mimo-v2.5",
+                            "model": bot_config.active_model,
                             "messages": [{"role": "user", "content": user_content}],
                             "max_tokens": 2000,
                             "thinking": {"type": "disabled"},
