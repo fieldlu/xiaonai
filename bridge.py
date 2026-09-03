@@ -1939,16 +1939,17 @@ async def call_openclaw(session_key, user_name, message, role, group_id=0):
             return None
 
 
-# Vision 熔断 (2026-08-15): MiMo 挂时识图会同步阻塞至多 60s/图，无冷却。
+# Vision 熔断 (2026-08-15): 识图模型挂时识图会同步阻塞至多 60s/图，无冷却。
 # 复用 kb_rewrite 同款熔断模式：连续 3 次失败禁 5 分钟，期间直接返回 ""（消息照常流转，仅识图降级）。
 _VISION_FAILS = 0
 _VISION_DISABLED_UNTIL = 0.0
 
 
-async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
-    """Use the current multimodal model (Sensenova) to understand an image.
+async def _describe_image(img_url: str, prompt_text: str = "") -> str:
+    """识图：默认走智谱 GLM-4.6V-Flash（vision_*），未配置时回退 active_*（Sensenova）。
 
-    返回描述文本或空串。Sensenova free 多模态响应慢(60-110s)且偶发 429 server busy：
+    返回描述文本或空串。历史教训：Sensenova free 多模态识图常被服务端 429（图片后端
+    繁忙、响应 60-110s 或挂 ~60s 后返 429）而文本正常，故识图通道独立于文本主模型。
     内部对 429/超时/空响应做有限重试；这些"服务端繁忙"型失败不触发熔断（只记日志），
     仅网络层真故障(连接拒绝等)累计多次才短暂熔断，避免把识图长期关掉。
     """
@@ -1995,30 +1996,36 @@ async def _describe_image_with_mimo(img_url: str, prompt_text: str = "") -> str:
             {"type": "text", "text": user_prompt}
         ]
 
-        # ---- 识图调用（Sensenova free 多模态）----
-        # 特性：单次响应常需 60-110s，偶发 429 server busy / 空 content。故：
+        # ---- 识图调用（vision_*：默认智谱 GLM-4.6V-Flash，未配置回退 Sensenova）----
+        # 特性：Sensenova free 图片后端繁忙时挂 ~60s 后返 429；GLM 免费档更快更稳。故：
         #   * 单次超时放宽到 110s（batch 层等 120s，能容纳）
         #   * 429(服务端繁忙)/空 content 短等后重试（首试 + 至多 2 次），常能救回
         #   * 这类 transient 失败不计入熔断（服务端繁忙≠服务坏），仅网络层真故障才累计熔断
         _VISION_TIMEOUT = 110.0
         last_reason = "unknown"
         desc = ""
+        _v_base = bot_config.vision_base_url
+        _v_key = bot_config.vision_api_key
+        _v_model = bot_config.vision_model
+        _v_glm = bool(bot_config.glm_api_key)
         for attempt in range(1, 4):  # 1-based，共 3 次
             try:
+                _payload = {
+                    "model": _v_model,
+                    "messages": [{"role": "user", "content": user_content}],
+                    "max_tokens": 2000,
+                }
+                # GLM 不识别 thinking 字段；Sensenova(回退) 需显式关 reasoning，否则吞 max_tokens
+                if not _v_glm:
+                    _payload["thinking"] = {"type": "disabled"}
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=_VISION_TIMEOUT)) as _sess:
                     async with _sess.post(
-                        f"{bot_config.active_base_url}/chat/completions",
+                        f"{_v_base}/chat/completions",
                         headers={
-                            "Authorization": f"Bearer {bot_config.active_api_key}",
+                            "Authorization": f"Bearer {_v_key}",
                             "Content-Type": "application/json",
                         },
-                        json={
-                            "model": bot_config.active_model,
-                            "messages": [{"role": "user", "content": user_content}],
-                            "max_tokens": 2000,
-                            # 默认 thinking ON 会吞 max_tokens；关掉让预算全给描述。
-                            "thinking": {"type": "disabled"},
-                        },
+                        json=_payload,
                     ) as _resp:
                         _status = _resp.status
                         _data = await _resp.json()
@@ -2146,7 +2153,7 @@ async def handle_qq_message(ws, data):
 
                     async def _vision_job(u=img_url, p="".join(text_parts), f=fut):
                         try:
-                            desc = await _describe_image_with_mimo(u, p)
+                            desc = await _describe_image(u, p)
                             if not f.done():
                                 f.set_result(desc)
                         except Exception as e:
@@ -2255,7 +2262,7 @@ async def handle_qq_message(ws, data):
                 if _iw_pend.get("url"):
                     log.info("IMG_WAIT hit gid=%s: mention after image, start vision", gid)
                     try:
-                        _iw_desc = await _describe_image_with_mimo(_iw_pend["url"], msg_content[:500])
+                        _iw_desc = await _describe_image(_iw_pend["url"], msg_content[:500])
                     except Exception as e:
                         log.error("IMG_WAIT vision error gid=%s: %s", gid, str(e)[:150])
                         _iw_desc = ""

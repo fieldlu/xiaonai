@@ -178,6 +178,7 @@ cp .env.example .env
 #   LLM_PROVIDER        —— 主模型提供者（sensenova 或 mimo，默认 sensenova）
 #   SENSENOVA_API_KEY   —— SenseNova Key（LLM_PROVIDER=sensenova 时必填）
 #   MIMO_API_KEY        —— MiMo Key（LLM_PROVIDER=mimo 或作为备选时）
+#   GLM_API_KEY         —— 智谱 Key（可选，识图专用通道；配置后识图走免费 glm-4.6v-flash，文本仍走上面主模型）
 #   BOT_ADMINS          —— 管理员 QQ 号（必填）
 #   QW_API_KEY / QW_API_HOST —— 和风天气（可选，天气/预警推送用）
 #   WHUT_USERNAME / WHUT_PASSWORD —— 校内系统（可选）

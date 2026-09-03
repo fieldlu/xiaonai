@@ -115,12 +115,13 @@ MIMO_BASE_URL=https://opencode.ai/zen/go/v1   # 可换任意 OpenAI 兼容端点
 ### 2. 图片识图 / OCR 🖼
 
 **功能详解**
-- **对话识图（主链路，bridge `_describe_image_with_mimo`）**：MiMo V2.5 **原生多模态**（图片转 base64 内联，thinking disabled）。防空返回——MiMo 偶发静默返回空 content（无错误）→ **自动重试一次**（实测同图重发成功）；连续 3 次失败触发**熔断**（禁 5 分钟，期间识图降级、消息照常流转）。识别结果以女大学生口吻自然转述（非百科腔）。
-- **工具 `ocr_image`**（tools_impl L647-742）：MiMo 视觉优先（max_tokens 2000，超时 60s）→ 失败回退本地 **Tesseract**（`-l chi_sim+eng --oem 1`，超时 30s）。
+- **对话识图（主链路，bridge `_describe_image`）**：识图走独立通道 `vision_*` —— 配置 `GLM_API_KEY`（智谱 **GLM-4.6V-Flash**，免费视觉模型）时识图用 GLM，未配置则回退当前 active provider（Sensenova 6.8）。图片转 base64 内联。防空返回/服务端繁忙——429、超时、空 content 自动重试（首试 + 至多 2 次，单次超时 110s）；这类 transient 失败**不计熔断**，仅网络层真故障连续 5 次才熔断 5 分钟（期间识图降级、消息照常流转）。识别结果以女大学生口吻自然转述（非百科腔）。
+- **工具 `ocr_image`**（tools_impl）：vision 模型优先（max_tokens 2000，超时 60s）→ 失败回退本地 **Tesseract**（`-l chi_sim+eng --oem 1`，超时 30s）。
 - 插件 `ocr_helper.py`：从消息中提取 `[CQ:image,...url=...]`（最多 3 张），下载（15s 超时）→ GIF 取首帧 / WebP 转 PNG / RGBA 白底合成 → OCR，结果 `\n---\n` 拼接，返回前 1500 字符。
 
 **配置方法**
-- 需要 `MIMO_API_KEY`（视觉通道，模型须支持图像输入）。
+- 需要 `SENSENOVA_API_KEY` 或 `MIMO_API_KEY`（文本主链路，由 `LLM_PROVIDER` 决定）。
+- 推荐加 `GLM_API_KEY`（智谱开放平台 open.bigmodel.cn，`glm-4.6v-flash` 免费）作**识图专用通道**——Sensenova free 识图常被服务端 429（图片后端繁忙）而文本正常，识图走 GLM 可绕开。
 - 本地回退需要系统装 Tesseract 中文包：
   ```bash
   sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim   # Debian/Ubuntu

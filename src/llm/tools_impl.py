@@ -648,7 +648,7 @@ async def deep_search(question: str = "", num: int = 8) -> str:
         return "Deep search failed: " + str(e)
 
 async def ocr_image(image_url: str = "", lang: str = "chi_sim+eng") -> str:
-    """Understand content of an image. Use when a user sends an image/picture/photo/screenshot. Uses MiMo multimodal vision (not just OCR) to understand both text and visual content."""
+    """Understand content of an image. Use when a user sends an image/picture/photo/screenshot. Uses the vision model (default GLM-4.6V-Flash, fallback active provider) to understand both text and visual content."""
     if not image_url:
         return "Please provide an image URL."
     try:
@@ -679,18 +679,21 @@ async def ocr_image(image_url: str = "", lang: str = "chi_sim+eng") -> str:
         ]
 
         async with httpx.AsyncClient(timeout=60) as cli:
+            _payload = {
+                "model": bot_config.vision_model,
+                "messages": [{"role": "user", "content": user_content}],
+                "max_tokens": 2000,
+            }
+            # GLM 不识别 thinking 字段；Sensenova(回退) 需显式关 reasoning，否则吞 max_tokens
+            if not bot_config.glm_api_key:
+                _payload["thinking"] = {"type": "disabled"}
             resp = await cli.post(
-                f"{bot_config.active_base_url}/chat/completions",
+                f"{bot_config.vision_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {bot_config.active_api_key}",
+                    "Authorization": f"Bearer {bot_config.vision_api_key}",
                     "Content-Type": "application/json",
                 },
-                json={
-                    "model": bot_config.active_model,
-                    "messages": [{"role": "user", "content": user_content}],
-                    "max_tokens": 2000,
-                    "thinking": {"type": "disabled"},
-                },
+                json=_payload,
             )
             data = resp.json()
             description = data["choices"][0]["message"]["content"]
