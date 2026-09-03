@@ -2410,11 +2410,16 @@ async def handle_qq_message(ws, data):
     msg_for_agent, _sanitized = sanitize_message(msg_for_agent, role)
     _user_raw_text = msg_for_agent
     now_ts = time.time()
-    msg_key = str(uid) + ":" + msg_for_agent[:60]
-    if msg_key in _pending_messages and now_ts - _pending_messages[msg_key] < 120:
-        log.info("DEDUP skip duplicate msg from uid=%d", uid)
+    # 09-03: DEDUP key 改用原始事件的 message_id。原实现取 msg_for_agent[:60] 作 key，
+    # 而识图轮模板前缀固定（"[用户发了一张图片，AI看图后得到的信息如下，…"），
+    # 不同图片的合成轮在 120s 窗口内文本前 60 字符完全相同 → 后一张图的识图轮被误判
+    # 重复而丢弃（13:45 事故：图2 识图完成即被吞，紧随的"这是什么意思"失去图上下文，
+    # bot 反问"你指的是什么"）。message_id 同事件双推时相同（仍能去重），不同图片不同。
+    _dedup_id = data.get("message_id") or (str(uid) + ":" + msg_for_agent[:60])
+    if _dedup_id in _pending_messages and now_ts - _pending_messages[_dedup_id] < 120:
+        log.info("DEDUP skip duplicate msg from uid=%d mid=%s", uid, str(_dedup_id)[:24])
         return
-    _pending_messages[msg_key] = now_ts
+    _pending_messages[_dedup_id] = now_ts
     if len(_pending_messages) > 100:
         _pending_messages.clear()
     tu = _load_toxic_users()
@@ -2506,7 +2511,10 @@ async def handle_qq_message(ws, data):
         response = _convert_at_mentions(response)
         # 08-15: 回复相关性兜底——识图消息若回复与描述零重叠（疑似串台跑题），重试一次
         if _img_desc_for_relevance and response and response.strip():
-            if not _reply_relevance_check(_img_desc_for_relevance, response):
+            # 09-03: 严格判 False 才重试。judge 失败/超时返回 None（语义=无法判断、放行），
+            # 原 `not judge(...)` 把 None 当真 → judge 一故障（GLM 429）就误触发一次 ~90s 的
+            # 无谓 agent 重试（13:54、13:56 两次现场）。None 必须放行。
+            if _reply_relevance_check(_img_desc_for_relevance, response) is False:
                 log.info("Reply off-topic vs image desc (串台疑似), retrying once...")
                 try:
                     _rt_key = session_key + "-relevance"
