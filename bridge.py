@@ -1982,11 +1982,12 @@ async def call_openclaw(session_key, user_name, message, role, group_id=0):
     # 08-15: AT/PT 从 240/260 降到 90/95——服务端缓存串台会令 agent 死循环，
     # 原超时下单次锁死 4 分钟、4 次重试约 17 分钟。降超时让失败更快暴露。
     # 09-03: 文本回退链（用户定版，全免费）：Sensenova(active_*) → glm-4.7-flash → agnes-2.5-flash。
-    # 主模型 2 次尝试、回退模型各 1 次，总超时预算 ≈ 旧 4×95s；主模型连败直接换家，不再原地四连击。
+    # 各 1 次尝试（20:04 实测：Sensenova 两次超时+glm 秒拒后 agnes 兜底成功，但等了 3 分钟）——
+    # 主模型超时立即换家，不再原地二次重试；总超时预算 3×95s，实际 glm 429 秒拒更快。
     # 各 provider 需在 ~/.openclaw/openclaw.json 的 models.providers 注册（glm/agnes 已加）。
     AT = 90; PT = 95
     _chain = bot_config.text_openclaw_chain
-    _plan = [(_chain[0], 2)] + [(m, 1) for m in _chain[1:]]
+    _plan = [(m, 1) for m in _chain]
     for _model, MR in _plan:
         for attempt in range(1, MR + 1):
             try:
