@@ -2017,13 +2017,22 @@ async def call_openclaw(session_key, user_name, message, role, group_id=0):
                         "以及有备用链路这回事，口语化，不要虚构其他模型名，不要否认自己会切换模型。"
                     )
                     msg = build_agent_message(role, user_name, message_cur, group_id)
-                proc = await asyncio.create_subprocess_exec(
-                    "openclaw", "agent", "--agent", "main", "--model", _model,
-                    "--thinking", "off",
-                    "--session-key", session_key,
-                    "--message", msg, "--json", "--timeout", str(AT),
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                )
+                # 08-15/09-03: create_subprocess_exec 本身可能挂起（残留子进程占住管道时
+                # 曾静默卡死整批消息，连超时日志都不出）——创建动作也包超时护栏
+                try:
+                    proc = await asyncio.wait_for(
+                        asyncio.create_subprocess_exec(
+                            "openclaw", "agent", "--agent", "main", "--model", _model,
+                            "--thinking", "off",
+                            "--session-key", session_key,
+                            "--message", msg, "--json", "--timeout", str(AT),
+                            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                        ),
+                        timeout=30,
+                    )
+                except asyncio.TimeoutError:
+                    log.error("Agent spawn timeout (30s, model=%s), switching", _model)
+                    break  # 进程都起不来 → 直接换下一家
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=PT)
                 if proc.returncode != 0:
                     err_text = stderr.decode(errors="replace")[:200]
