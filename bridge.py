@@ -2055,7 +2055,7 @@ _VISION_DISABLED_UNTIL = 0.0
 
 
 async def _describe_image(img_url: str, prompt_text: str = "") -> str:
-    """识图：默认走智谱 GLM-4.6V-Flash（vision_*），未配置时回退 active_*（Sensenova）。
+    """识图：provider 链 GLM-4.6V-Flash → MiMo-v2.5（未配 GLM/MiMo 时回退 vision_*，即 Sensenova）。
 
     返回描述文本或空串。历史教训：Sensenova free 多模态识图常被服务端 429（图片后端
     繁忙、响应 60-110s 或挂 ~60s 后返 429）而文本正常，故识图通道独立于文本主模型。
@@ -2105,87 +2105,96 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
             {"type": "text", "text": user_prompt}
         ]
 
-        # ---- 识图调用（vision_*：默认智谱 GLM-4.6V-Flash，未配置回退 Sensenova）----
-        # 特性：Sensenova free 图片后端繁忙时挂 ~60s 后返 429；GLM 免费档图片可用但偶发
-        #       瞬时 429「访问量过大」（秒回），限流窗口常持续 10-30s——固定短 sleep 重试
-        #       会整段撞在窗口里全败（09-03 13:19 实测 3×4s 全 429）。故：
-        #   * GLM 单次超时 50s（实测 3-15s 出结果），Sensenova 回退保留 110s（batch 等 120s）
-        #   * 429/空 content 用指数退避（4/9/16/25s）重试至多 5 次，覆盖 30s+ 限流窗口
-        #   * 这类 transient 失败不计入熔断（服务端繁忙≠服务坏），仅网络层真故障才累计熔断
-        _VISION_MAX_ATTEMPTS = 5
+        # ---- 识图调用（provider 链：GLM-4.6V-Flash → MiMo-v2.5 → [未配时 Sensenova 回退]）----
+        # 09-03 18:29 宿舍图实测：GLM 免费档白天 1305「访问量过大」秒 429，5 次退避 55s 全败；
+        # Sensenova 图片后端挂 66s 后 429；MiMo-v2.5 稳定 8.4s 出描述。故改为链式回退：
+        #   * GLM 3 次（4/9s 退避，覆盖 30s 内短限流窗口）→ MiMo 3 次（4/9s）
+        #   * 单家重试耗尽换下一家，不再因免费档限流直接放弃识图
+        #   * transient(429/超时/空) 仍不计熔断（服务端繁忙≠服务坏），仅网络层真故障才累计熔断
         _VISION_BUSY_DELAYS = (4.0, 9.0, 16.0, 25.0)   # 429/服务端繁忙: 指数退避 (第1~4次失败后)
         _VISION_SOFT_DELAYS = (2.0, 3.0, 5.0, 8.0)     # 网络/超时等: 温和退避
-        _v_base = bot_config.vision_base_url
-        _v_key = bot_config.vision_api_key
-        _v_model = bot_config.vision_model
-        _v_glm = bool(bot_config.glm_api_key)
-        _VISION_TIMEOUT = 50.0 if _v_glm else 110.0
+        _chain = []
+        if bot_config.glm_api_key:
+            _chain.append(("glm", bot_config.glm_base_url, bot_config.glm_api_key,
+                           bot_config.glm_model, 50.0, 3))
+        if bot_config.mimo_api_key:
+            _chain.append(("mimo", bot_config.mimo_base_url, bot_config.mimo_api_key,
+                           bot_config.mimo_model, 60.0, 3))
+        if not _chain:
+            # 未配 GLM/MiMo：维持旧行为，走 vision_*（Sensenova）110s 5 次
+            _chain.append(("sensenova", bot_config.vision_base_url, bot_config.vision_api_key,
+                           bot_config.vision_model, 110.0, 5))
         last_reason = "unknown"
         desc = ""
-        for attempt in range(1, _VISION_MAX_ATTEMPTS + 1):  # 1-based
-            try:
-                _payload = {
-                    "model": _v_model,
-                    "messages": [{"role": "user", "content": user_content}],
-                    "max_tokens": 2000,
-                }
-                # GLM 不识别 thinking 字段；Sensenova(回退) 需显式关 reasoning，否则吞 max_tokens
-                if not _v_glm:
-                    _payload["thinking"] = {"type": "disabled"}
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=_VISION_TIMEOUT)) as _sess:
-                    async with _sess.post(
-                        f"{_v_base}/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {_v_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json=_payload,
-                    ) as _resp:
-                        _status = _resp.status
-                        _data = await _resp.json()
-            except asyncio.TimeoutError:
-                last_reason = f"timeout(>{int(_VISION_TIMEOUT)}s)"
-                log.warning("Vision: attempt %d %s, retrying", attempt, last_reason)
-                if attempt < _VISION_MAX_ATTEMPTS:
-                    await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
-                continue
-            except Exception as _e:
-                last_reason = f"{type(_e).__name__}:{str(_e)[:100]}"
-                log.warning("Vision: attempt %d conn error (%s), retrying", attempt, last_reason)
-                if attempt < _VISION_MAX_ATTEMPTS:
-                    await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
-                continue
+        for _p_name, _v_base, _v_key, _v_model, _v_timeout, _v_attempts in _chain:
+            for attempt in range(1, _v_attempts + 1):  # 1-based
+                try:
+                    _payload = {
+                        "model": _v_model,
+                        "messages": [{"role": "user", "content": user_content}],
+                        "max_tokens": 2000,
+                    }
+                    # GLM/MiMo 不识别 thinking 字段；Sensenova(回退) 需显式关 reasoning，否则吞 max_tokens
+                    if _p_name == "sensenova":
+                        _payload["thinking"] = {"type": "disabled"}
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=_v_timeout)) as _sess:
+                        async with _sess.post(
+                            f"{_v_base}/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {_v_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json=_payload,
+                        ) as _resp:
+                            _status = _resp.status
+                            _data = await _resp.json()
+                except asyncio.TimeoutError:
+                    last_reason = f"timeout(>{int(_v_timeout)}s)"
+                    log.warning("Vision[%s]: attempt %d %s, retrying", _p_name, attempt, last_reason)
+                    if attempt < _v_attempts:
+                        await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
+                    continue
+                except Exception as _e:
+                    last_reason = f"{type(_e).__name__}:{str(_e)[:100]}"
+                    log.warning("Vision[%s]: attempt %d conn error (%s), retrying", _p_name, attempt, last_reason)
+                    if attempt < _v_attempts:
+                        await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
+                    continue
 
-            if _status == 429:
-                # 服务端繁忙（Sensenova free 图片后端 / GLM-4.6V-Flash 瞬时「访问量过大」）——
-                # 指数退避后重试常能救回；不算真故障
-                last_reason = "429 server busy"
-                log.warning("Vision: attempt %d 429 server busy, retrying (backoff %ss)",
-                            attempt, _VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)] if attempt < _VISION_MAX_ATTEMPTS else 0)
-                if attempt < _VISION_MAX_ATTEMPTS:
+                if _status == 429:
+                    # 服务端繁忙（GLM 免费档 1305 / Sensenova 图片后端）——指数退避后重试常能救回
+                    last_reason = "429 server busy"
+                    log.warning("Vision[%s]: attempt %d 429 server busy, retrying (backoff %ss)",
+                                _p_name, attempt,
+                                _VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)] if attempt < _v_attempts else 0)
+                    if attempt < _v_attempts:
+                        await asyncio.sleep(_VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)])
+                    continue
+                if _status != 200:
+                    last_reason = f"HTTP {_status}"
+                    log.warning("Vision[%s]: attempt %d HTTP %d, retrying", _p_name, attempt, _status)
+                    if attempt < _v_attempts:
+                        await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
+                    continue
+
+                desc = ((_data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                if desc:
+                    _VISION_FAILS = 0  # 成功清零，避免成功间夹带的失败永远累加
+                    log.info("Vision[%s]: got %d chars description", _p_name, len(desc))
+                    return desc.strip()
+                # 空 content：模型偶发对图片静默返回空，重试常可救（08-15 已实测）——按繁忙型指数退避
+                last_reason = "empty content"
+                log.warning("Vision[%s]: attempt %d empty content, retrying", _p_name, attempt)
+                if attempt < _v_attempts:
                     await asyncio.sleep(_VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)])
-                continue
-            if _status != 200:
-                last_reason = f"HTTP {_status}"
-                log.warning("Vision: attempt %d HTTP %d, retrying", attempt, _status)
-                if attempt < _VISION_MAX_ATTEMPTS:
-                    await asyncio.sleep(_VISION_SOFT_DELAYS[min(attempt - 1, len(_VISION_SOFT_DELAYS) - 1)])
-                continue
+            # 该 provider 重试耗尽，换下一家
+            log.warning("Vision[%s]: %d attempts exhausted (last: %s), switching provider",
+                        _p_name, _v_attempts, last_reason)
 
-            desc = ((_data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-            if desc:
-                _VISION_FAILS = 0  # 成功清零，避免成功间夹带的失败永远累加
-                log.info("Vision: got %d chars description", len(desc))
-                return desc.strip()
-            # 空 content：模型偶发对图片静默返回空，重试常可救（08-15 已实测）——按繁忙型指数退避
-            last_reason = "empty content"
-            log.warning("Vision: attempt %d empty content, retrying", attempt)
-            if attempt < _VISION_MAX_ATTEMPTS:
-                await asyncio.sleep(_VISION_BUSY_DELAYS[min(attempt - 1, len(_VISION_BUSY_DELAYS) - 1)])
-
-        # 5 次未成。transient(429/超时/空) 属服务端繁忙，不熔断、不累加失败计数，
-        # 避免 Sensenova free 繁忙时把识图长期关掉；下次图片仍会再试。
-        log.warning("Vision: all attempts failed (last: %s); transient NOT counted to breaker", last_reason)
+        # 全链未成。transient(429/超时/空) 属服务端繁忙，不熔断、不累加失败计数，
+        # 下次图片仍会再试。
+        log.warning("Vision: all %d providers failed (last: %s); transient NOT counted to breaker",
+                    len(_chain), last_reason)
         _VISION_FAILS = 0
         return ""
     except Exception as e:
