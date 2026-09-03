@@ -26,6 +26,8 @@ class BotConfig(BaseSettings):
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     glm_model: str = "glm-4.6v-flash"
+    # 文本回退链第二顺位用的 GLM 文本模型（免费，2026-09-03 定版）
+    glm_text_model: str = "glm-4.7-flash"
 
     # Agnes（识图首选通道，2026-09-03）：agnes-2.5-flash，OpenAI 兼容 chat/completions，
     # 支持 image_url 输入（实测 base64 data URI 可用，2.5s 出描述），现价 ¥0/百万 token。
@@ -77,6 +79,20 @@ class BotConfig(BaseSettings):
         prov = "sensenova" if self.llm_provider == "sensenova" else "mimo"
         mdl = self.sensenova_model if self.llm_provider == "sensenova" else self.mimo_model
         return f"{prov}/{mdl}"
+
+    @property
+    def text_openclaw_chain(self) -> list[str]:
+        """文本回复生成回退链（OpenClaw provider/model 前缀形式，2026-09-03 用户定版，全免费）：
+
+        Sensenova(active_*) → GLM-4.7-flash（免费文本档）→ Agnes（agnes-2.5-flash，¥0）。
+        Sensenova 超时/挂掉时依次降级；provider 需在 ~/.openclaw/openclaw.json 注册同名条目。
+        """
+        chain = [self.active_openclaw_model]
+        if self.glm_api_key:
+            chain.append(f"glm/{self.glm_text_model}")
+        if self.agnes_api_key:
+            chain.append(f"agnes/{self.agnes_model}")
+        return chain
 
     # ---- 识图通道分派（vision_*）----
     # 识图与文本解耦：配置 glm_api_key（智谱 GLM-4.6V-Flash 免费视觉模型）时识图走 GLM；

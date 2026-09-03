@@ -1010,7 +1010,7 @@ async def download_qq_file(url, filename):
 
 
 
-# ─── MiMo 工具路由器 (2026-08-02) ───
+# ─── 工具路由器 (2026-08-02；原「MiMo 工具路由器」，模型随 active_* 联动，09-03 正名) ───
 _MIMO_TOOL_DESC = [
     ("plan", "招生计划/专业分组/选科要求/招多少人/某省招什么专业"),
     ("score", "录取分数/位次/投档线/多少分能上/稳不稳"),
@@ -1028,7 +1028,7 @@ _MIMO_ROUTER_DISABLED_UNTIL = 0.0
 
 
 def _parse_router_json(content, msg):
-    """Robustly extract {tool, query} from MiMo output. Returns dict or None."""
+    """Robustly extract {tool, query} from router LLM output. Returns dict or None."""
     import json as _json, re as _re
     if not content or not isinstance(content, str):
         return None
@@ -1047,12 +1047,14 @@ def _parse_router_json(content, msg):
 
 
 def _route_tool_with_mimo(msg):
-    """MiMo decides which tool to invoke. Returns {tool, query} or None. Circuit-breakered."""
+    """工具路由：LLM（active_*，随 llm_provider 联动，当前 Sensenova）选工具。
+    函数名保留 _mimo 仅为兼容调用点；日志一律用「tool router」，不再提 MiMo。
+    Returns {tool, query} or None. Circuit-breakered."""
     global _MIMO_ROUTER_FAILS, _MIMO_ROUTER_DISABLED_UNTIL
     import httpx, time as _time
     now = _time.time()
     if now < _MIMO_ROUTER_DISABLED_UNTIL:
-        log.info("MiMo router: circuit open, using regex fallback")
+        log.info("tool router: circuit open, using regex fallback")
         return None
     try:
         from config import bot_config
@@ -1091,7 +1093,7 @@ def _route_tool_with_mimo(msg):
         res = _parse_router_json(content, msg)
         if res:
             _MIMO_ROUTER_FAILS = 0
-            log.info("MiMo router → %s (q=%s)", res["tool"], res["query"][:40])
+            log.info("tool router → %s (q=%s)", res["tool"], res["query"][:40])
             return res
         # 08-15: unparseable 也是失败——原先只 +1 不熔断，MiMo 连续输出坏 JSON 时
         # 每次消息都白调一次 LLM + 白等 10s。与 except 分支对齐：3 次熔断 5 分钟。
@@ -1099,16 +1101,16 @@ def _route_tool_with_mimo(msg):
         if _MIMO_ROUTER_FAILS >= 3:
             _MIMO_ROUTER_DISABLED_UNTIL = _time.time() + 300
             _MIMO_ROUTER_FAILS = 0
-            log.warning("MiMo router: 3 unparseable, disabled 5min (fallback to regex)")
-        log.warning("MiMo router: unparseable output: %r", str(content)[:150])
+            log.warning("tool router: 3 unparseable, disabled 5min (fallback to regex)")
+        log.warning("tool router: unparseable output: %r", str(content)[:150])
         return None
     except Exception as e:
         _MIMO_ROUTER_FAILS += 1
         if _MIMO_ROUTER_FAILS >= 3:
             _MIMO_ROUTER_DISABLED_UNTIL = _time.time() + 300
             _MIMO_ROUTER_FAILS = 0
-            log.error("MiMo router: 3 failures, disabled 5min (fallback to regex)")
-        log.error("MiMo router error: %s", str(e)[:200])
+            log.error("tool router: 3 failures, disabled 5min (fallback to regex)")
+        log.error("tool router error: %s", str(e)[:200])
         return None
 
 
@@ -1769,7 +1771,7 @@ def _inject_command_data(msg, user_name="", uid=0, gid=0):
         if routed:
             tool = routed["tool"]
             if tool == "none":
-                log.info("MiMo router → none (no injection)")
+                log.info("tool router → none (no injection)")
                 return ""
             q = routed.get("query") or msg
             if tool == "plan": _exec_plan(q, out)
@@ -1972,80 +1974,88 @@ async def call_openclaw(session_key, user_name, message, role, group_id=0):
     from config import bot_config  # 09-02: 人格层模型随 llm_provider 联动（Sensenova/MiMo 一键回切）
     # 08-15: AT/PT 从 240/260 降到 90/95——服务端缓存串台会令 agent 死循环，
     # 原超时下单次锁死 4 分钟、4 次重试约 17 分钟。降超时让失败更快暴露。
-    AT = 90; PT = 95; MR = 4
-    for attempt in range(1, MR + 1):
-        try:
-            resume = _check_session_resume(session_key)
-            if resume:
-                message_cur = resume + "\n\n[现在] " + message
-            else:
-                message_cur = message
-            health_ctx = _build_health_context()
-            if health_ctx and role == "admin":
-                message_cur = health_ctx + message_cur
-            # 08-15: 重试时给 message 追加提示，改变 prompt 内容避开服务端坏缓存
-            # （OpenCode 缓存按 prompt 内容哈希，换 session key 无用——同内容仍命中同缓存）
-            if attempt > 1:
-                message_cur = (message_cur +
-                               "\n\n（上次生成无效被丢弃。请直接给出简洁中文回答，"
-                               "不要输出任何英文分析/思考过程/搜索计划。）")
-            msg = build_agent_message(role, user_name, message_cur, group_id)
-            proc = await asyncio.create_subprocess_exec(
-                "openclaw", "agent", "--agent", "main", "--model", bot_config.active_openclaw_model,
-                "--thinking", "off",
-                "--session-key", session_key,
-                "--message", msg, "--json", "--timeout", str(AT),
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=PT)
-            if proc.returncode != 0:
-                err_text = stderr.decode(errors="replace")[:200]
-                log.error("Agent error (atp %d/%d): rc=%d %s", attempt, MR, proc.returncode, err_text)
+    # 09-03: 文本回退链（用户定版，全免费）：Sensenova(active_*) → glm-4.7-flash → agnes-2.5-flash。
+    # 主模型 2 次尝试、回退模型各 1 次，总超时预算 ≈ 旧 4×95s；主模型连败直接换家，不再原地四连击。
+    # 各 provider 需在 ~/.openclaw/openclaw.json 的 models.providers 注册（glm/agnes 已加）。
+    AT = 90; PT = 95
+    _chain = bot_config.text_openclaw_chain
+    _plan = [(_chain[0], 2)] + [(m, 1) for m in _chain[1:]]
+    for _model, MR in _plan:
+        for attempt in range(1, MR + 1):
+            try:
+                resume = _check_session_resume(session_key)
+                if resume:
+                    message_cur = resume + "\n\n[现在] " + message
+                else:
+                    message_cur = message
+                health_ctx = _build_health_context()
+                if health_ctx and role == "admin":
+                    message_cur = health_ctx + message_cur
+                # 08-15: 重试时给 message 追加提示，改变 prompt 内容避开服务端坏缓存
+                # （OpenCode 缓存按 prompt 内容哈希，换 session key 无用——同内容仍命中同缓存）
+                if attempt > 1:
+                    message_cur = (message_cur +
+                                   "\n\n（上次生成无效被丢弃。请直接给出简洁中文回答，"
+                                   "不要输出任何英文分析/思考过程/搜索计划。）")
+                msg = build_agent_message(role, user_name, message_cur, group_id)
+                proc = await asyncio.create_subprocess_exec(
+                    "openclaw", "agent", "--agent", "main", "--model", _model,
+                    "--thinking", "off",
+                    "--session-key", session_key,
+                    "--message", msg, "--json", "--timeout", str(AT),
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=PT)
+                if proc.returncode != 0:
+                    err_text = stderr.decode(errors="replace")[:200]
+                    log.error("Agent error (atp %d/%d, model=%s): rc=%d %s", attempt, MR, _model, proc.returncode, err_text)
+                    if attempt < MR:
+                        log.info("Retrying agent (atp %d, model=%s)...", attempt + 1, _model)
+                        await asyncio.sleep(2)
+                        continue
+                    break  # 该模型重试耗尽 → 换下一家
+                result = json.loads(stdout.decode(errors="replace"))
+                if result.get("status") == "ok":
+                    for p in result.get("result", {}).get("payloads", []):
+                        text = p.get("text", "").strip()
+                        if text:
+                            # 08-15: 增强坏回复检测——加英文思考链（服务端缓存串台时反复输出
+                            # "Let me search..." 等英文推理，被清洗后为空或泄漏给用户）
+                            if (_is_heartbeat_report(text) or "[Called" in text or "Exec failed" in text
+                                    or _is_english_reasoning(text)):
+                                log.info("Agent bad reply (atp %d, model=%s): %s, retrying",
+                                         attempt, _model, text[:40].replace(chr(10), " "))
+                                break
+                            return text
+                log.warning("Agent empty payload (atp %d/%d, model=%s)", attempt, MR, _model)
                 if attempt < MR:
-                    log.info("Retrying agent (atp %d)...", attempt + 1)
+                    log.info("Retrying agent (atp %d, model=%s)...", attempt + 1, _model)
                     await asyncio.sleep(2)
                     continue
-                return None
-            result = json.loads(stdout.decode(errors="replace"))
-            if result.get("status") == "ok":
-                for p in result.get("result", {}).get("payloads", []):
-                    text = p.get("text", "").strip()
-                    if text:
-                        # 08-15: 增强坏回复检测——加英文思考链（服务端缓存串台时 MiMo 反复输出
-                        # "Let me search..." 等英文推理，被清洗后为空或泄漏给用户）
-                        if (_is_heartbeat_report(text) or "[Called" in text or "Exec failed" in text
-                                or _is_english_reasoning(text)):
-                            log.info("Agent bad reply (atp %d): %s, retrying", attempt, text[:40].replace(chr(10), " "))
-                            break
-                        return text
-            log.warning("Agent empty payload (atp %d/%d)", attempt, MR)
-            if attempt < MR:
-                log.info("Retrying agent (atp %d)...", attempt + 1)
-                await asyncio.sleep(2)
-                continue
-            return None
-        except asyncio.TimeoutError:
-            log.error("Agent timeout (atp %d/%d, %ds)", attempt, MR, AT)
-            # 08-15: 超时必须杀子进程——否则 agent 死循环的子进程残留，
-            # pipe 不释放导致下次尝试 create_subprocess 挂起（曾静默卡死第 3 次尝试）
-            try:
-                proc.kill()
-                await asyncio.wait_for(proc.communicate(), timeout=5)
-            except Exception as _ke:
-                log.error("Agent timeout cleanup error: %s", str(_ke)[:100])
-            if attempt < MR:
-                log.info("Agent timeout, retrying...")
-                await asyncio.sleep(2)
-                continue
-            return None
-        except json.JSONDecodeError as e:
-            log.error("Agent JSON error (atp %d/%d): %s", attempt, MR, str(e)[:100])
-            if attempt < MR:
-                continue
-            return None
-        except Exception as e:
-            log.error("Agent unexpected error: %s", str(e)[:200])
-            return None
+                break  # 该模型重试耗尽 → 换下一家
+            except asyncio.TimeoutError:
+                log.error("Agent timeout (atp %d/%d, %ds, model=%s)", attempt, MR, AT, _model)
+                # 08-15: 超时必须杀子进程——否则 agent 死循环的子进程残留，
+                # pipe 不释放导致下次尝试 create_subprocess 挂起（曾静默卡死第 3 次尝试）
+                try:
+                    proc.kill()
+                    await asyncio.wait_for(proc.communicate(), timeout=5)
+                except Exception as _ke:
+                    log.error("Agent timeout cleanup error: %s", str(_ke)[:100])
+                if attempt < MR:
+                    log.info("Agent timeout, retrying (model=%s)...", _model)
+                    await asyncio.sleep(2)
+                    continue
+                break  # 该模型重试耗尽 → 换下一家
+            except json.JSONDecodeError as e:
+                log.error("Agent JSON error (atp %d/%d, model=%s): %s", attempt, MR, _model, str(e)[:100])
+                if attempt < MR:
+                    continue
+                break  # 该模型重试耗尽 → 换下一家
+            except Exception as e:
+                log.error("Agent unexpected error (model=%s): %s", _model, str(e)[:200])
+                break  # 该模型异常 → 换下一家
+    return None
 
 
 # Vision 熔断 (2026-08-15): 识图模型挂时识图会同步阻塞至多 60s/图，无冷却。
