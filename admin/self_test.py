@@ -13,8 +13,14 @@ Usage: python3 admin/self_test.py [--full]
 Output: JSON (stdout) + persisted data/self_test_state.json
 Exit:   0 = all probes ok, 1 = any probe failed
 """
-import json, sys, subprocess, time, urllib.request
+import json, sys, subprocess, time, urllib.request, os
 from datetime import datetime, timezone, timedelta
+
+# 09-03: health_check.sh 用绝对路径调本脚本，cwd 可能是 cron 的 HOME；
+# 注入脚本所在目录 + 其父目录，兼容「根目录版(与 config 同级)」和「admin/ 子目录版(本地镜像)」。
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.dirname(_HERE))
 
 BEIJING = timezone(timedelta(hours=8))
 NAPCAT_API = "http://127.0.0.1:3000"
@@ -50,6 +56,7 @@ def level3_agent():
     the agent layer down.
     """
     import time as _t
+    from config import bot_config  # 09-03: L3 探测跟随生效 provider，勿硬编码 MiMo
 
     attempts = 0
     while attempts < 3:
@@ -57,13 +64,13 @@ def level3_agent():
         sess = "health-selftest-%d" % int(_t.time())
         cmd = [
             "openclaw", "agent", "--agent", "main",
-            "--model", "mimo/mimo-v2.5",
+            "--model", bot_config.active_openclaw_model,
             "--thinking", "off",
             "--session-key", sess,
-            "--message", "ping", "--json", "--timeout", "25",
+            "--message", "ping", "--json", "--timeout", "70",
         ]
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=80)
             text = r.stdout or ""
             ok = r.returncode == 0 and len(text) > 0
             if ok:

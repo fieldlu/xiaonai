@@ -178,7 +178,7 @@ def cmd_agent(args):
         print("""agent 子命令:
   agent reload       — 重载 agent 配置 (restart openclaw)
   agent run <msg>    — 直接向 agent 发送指令并获取回复
-  agent model <id>   — 切换模型 (mimo-v2.5)
+  agent model <id>   — 查看/切换 OpenClaw 模型（当前默认 sensenova/sensenova-6.8-flash-lite）
   agent clear        — 清除所有 session
   agent sessions     — 查看活跃 session""")
         return
@@ -201,28 +201,27 @@ def cmd_agent(args):
         print(out[:2000] if len(out) > 2000 else out)
 
     elif subcmd == "model":
-        if len(args) < 2:
-            print("用法: admin_cli.py agent model <id>")
-            print("可用: deepseek-v4-flash (主模型) | mimo-v2.5 (识图)")
-            return
-        model = args[1]
-        config_path = os.path.expanduser("~/.openclaw/agents/main/agent/models.json")
+        # 09-03: 模型切换改走 config.py 的 llm_provider 分派（.env），不再操作旧的 models.json。
         try:
-            cfg = json.loads(Path(config_path).read_text())
-            providers = cfg.get("providers", {})
-            # Update default model ref
-            for pname, pdata in providers.items():
-                models = pdata.get("models", [])
-                valid = any(m.get("id") == model for m in models)
-                if valid:
-                    # Write preferred model to agent config
-                    print(f"✅ 模型已切换至 {model}")
-                    print(f"   注意: 永久切换需修改 models.json 中 defaultModel 字段")
-                    print(f"   当前仅本次生效: openclaw agent --model mimo/{model}")
-                    return
-            print(f"❌ 模型 {model} 不在可用列表中")
-        except Exception as e:
-            print(f"❌ {e}")
+            _here = os.path.dirname(os.path.abspath(__file__))
+            sys.path.insert(0, _here)
+            sys.path.insert(0, os.path.dirname(_here))
+            from config import bot_config
+        except Exception as _e:
+            bot_config = None
+        if len(args) < 2:
+            if bot_config:
+                print(f"当前生效模型: {bot_config.active_openclaw_model}")
+                print(f"  (llm_provider={bot_config.llm_provider})")
+            else:
+                print("当前生效模型: (无法读 config)")
+            print("")
+            print("切换模型（永久）: 改 .env 的 LLM_PROVIDER=sensenova|mimo 后重启 xiaonai-bridge")
+            print("  或: 改 ~/.openclaw/openclaw.json 的 agents.defaults.models 后重启 openclaw-gateway")
+            print("sensenova → sensenova/sensenova-6.8-flash-lite；mimo → mimo/mimo-v2.5")
+            return
+        print("用法: admin_cli.py agent model   （查看当前生效模型与切换指引）")
+        print("模型切换请通过 .env 的 LLM_PROVIDER 或 openclaw.json defaults.models，勿手动改本工具旧配置。")
 
     elif subcmd == "clear":
         code, out = run(f"cd {QQBOT_DIR} && python3 admin/session_cleaner_v2.py --force 2>&1")
