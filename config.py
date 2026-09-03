@@ -19,13 +19,13 @@ class BotConfig(BaseSettings):
     sensenova_base_url: str = "https://token.sensenova.cn/v1"
     sensenova_model: str = "sensenova-6.8-flash-lite"
 
-    # 识图专用通道（可选）：智谱 GLM-4.6V-Flash（免费视觉模型）。
+    # 识图专用通道（可选）：智谱 GLM-4.5V（视觉推理模型）。
     # Sensenova free 多模态识图常被服务端 429（图片后端繁忙）而文本正常——因此识图
     # 与文本主模型解耦：配置了 glm_api_key 后，识图请求走 GLM，文本对话仍走 active_*。
     # 未配置 glm_api_key 时 vision_* 自动回退到 active_*（行为与未改造前一致）。
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
-    glm_model: str = "glm-4.6v-flash"
+    glm_model: str = "glm-4.5v"
 
     # 其它（天气等，非 LLM 主链路）
     deepseek_api_key: str = ""
@@ -73,7 +73,7 @@ class BotConfig(BaseSettings):
         return f"{prov}/{mdl}"
 
     # ---- 识图通道分派（vision_*）----
-    # 识图与文本解耦：配置 glm_api_key（智谱 GLM-4.6V-Flash 免费视觉模型）时识图走 GLM；
+    # 识图与文本解耦：配置 glm_api_key（智谱 GLM-4.5V 视觉推理模型）时识图走 GLM；
     # 否则回退 active_*（当前为 Sensenova），保持改造前行为。
     @property
     def vision_base_url(self) -> str:

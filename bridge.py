@@ -1946,7 +1946,7 @@ _VISION_DISABLED_UNTIL = 0.0
 
 
 async def _describe_image(img_url: str, prompt_text: str = "") -> str:
-    """识图：默认走智谱 GLM-4.6V-Flash（vision_*），未配置时回退 active_*（Sensenova）。
+    """识图：默认走智谱 GLM-4.5V（vision_*），未配置时回退 active_*（Sensenova）。
 
     返回描述文本或空串。历史教训：Sensenova free 多模态识图常被服务端 429（图片后端
     繁忙、响应 60-110s 或挂 ~60s 后返 429）而文本正常，故识图通道独立于文本主模型。
@@ -1996,7 +1996,7 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
             {"type": "text", "text": user_prompt}
         ]
 
-        # ---- 识图调用（vision_*：默认智谱 GLM-4.6V-Flash，未配置回退 Sensenova）----
+        # ---- 识图调用（vision_*：默认智谱 GLM-4.5V，未配置回退 Sensenova）----
         # 特性：Sensenova free 图片后端繁忙时挂 ~60s 后返 429；GLM 免费档更快更稳。故：
         #   * 单次超时放宽到 110s（batch 层等 120s，能容纳）
         #   * 429(服务端繁忙)/空 content 短等后重试（首试 + 至多 2 次），常能救回
