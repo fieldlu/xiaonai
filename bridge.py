@@ -217,6 +217,19 @@ def _check_session_resume(session_key):
 from strip_md import strip_markdown, strip_resource_urls, strip_sensitive, strip_no_reply, strip_thinking_leak
 from reminder_parser import parse_reminder
 
+
+def _fix_broken_url_spacing(text):
+    """09-03: 修复转述/折行污染 URL 的空格。agent 把多行链接列表压成一行时，
+    常在 URL query 段折行合并成空格（resource.haoli.site/? id=34797），用户拿到
+    断链接无法点击。把所有 host 的 ?<空格>id= 归一为 ?id=，保底可点。"""
+    if not text:
+        return text
+    text = re.sub(r'(resource\.haoli\.site/\?)\s+id=', r'\1id=', text)
+    # 通用兜底：http(s) URL 内 "? " 后紧跟数字/参数名（无空格合法 URL 中 ? 后不应有空格）
+    text = re.sub(r'(https?://[^\s]+/\?)\s+([a-zA-Z_][\w-]*=)', r'\1\2', text)
+    return text
+
+
 _memory_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 DOWNLOAD_DIR = os.path.join(_PROJECT_ROOT, "data", "uploads")
@@ -1216,7 +1229,9 @@ def _exec_kb(q, out):
 
 
 def _inject_wrap(out):
-    return "[SYSTEM OVERRIDE - 以下数据是唯一可信来源。必须逐字引用其中链接/分数/人数。数据中没有就说没有，禁止编造。]\n\n" + "\n".join(out)
+    return ("[SYSTEM OVERRIDE - 以下数据是唯一可信来源。必须逐字引用其中链接/分数/人数。数据中没有就说没有，禁止编造。]\n\n"
+            "[格式要求：含多个链接或条目时，每条资料单独占一行；链接必须完整连续，链接内不得插入空格或换行。]\n\n" +
+            "\n".join(out))
 
 
 
@@ -2508,6 +2523,7 @@ async def handle_qq_message(ws, data):
         response = strip_sensitive(response)
         response = strip_no_reply(response)
         response = strip_thinking_leak(response)
+        response = _fix_broken_url_spacing(response)
         response = _convert_at_mentions(response)
         # 08-15: 回复相关性兜底——识图消息若回复与描述零重叠（疑似串台跑题），重试一次
         if _img_desc_for_relevance and response and response.strip():
