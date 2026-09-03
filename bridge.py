@@ -1970,6 +1970,13 @@ def _is_english_reasoning(text):
     return False
 
 
+_MODEL_IDENTITY_RE = re.compile(
+    r"什么模型|哪个模型|模型是啥|用的什么|你是谁|谁开发|谁做的|谁家|哪家|"
+    r"gpt|chatgpt|openai|claude|deepseek|gemini|kimi|豆包|通义|文心|智谱|商汤|agnes|sensenova|mimo",
+    re.I,
+)
+
+
 async def call_openclaw(session_key, user_name, message, role, group_id=0):
     from config import bot_config  # 09-02: 人格层模型随 llm_provider 联动（Sensenova/MiMo 一键回切）
     # 08-15: AT/PT 从 240/260 降到 90/95——服务端缓存串台会令 agent 死循环，
@@ -1998,6 +2005,18 @@ async def call_openclaw(session_key, user_name, message, role, group_id=0):
                                    "\n\n（上次生成无效被丢弃。请直接给出简洁中文回答，"
                                    "不要输出任何英文分析/思考过程/搜索计划。）")
                 msg = build_agent_message(role, user_name, message_cur, group_id)
+                # 09-03: 问"你是什么模型"时答得清楚——注入当前实际模型与双回退链信息。
+                # _model 每次换家都不同，注入的是本次真正生成回复的那一家。
+                if _MODEL_IDENTITY_RE.search(message_cur):
+                    message_cur += (
+                        "\n\n[模型身份] 本次回复由 " + _model + " 生成。"
+                        "文本回退链：Sensenova 6.8-flash-lite（商汤）→ GLM-4.7-flash（智谱，免费档）→ "
+                        "Agnes 2.5-flash（¥0，前一家失败才换下一家）；"
+                        "识图链：Agnes 2.5-flash → GLM-4.6V-Flash → Sensenova。"
+                        "用户问是什么模型时，如实按上面信息回答：说清楚是哪家公司的哪个模型、"
+                        "以及有备用链路这回事，口语化，不要虚构其他模型名，不要否认自己会切换模型。"
+                    )
+                    msg = build_agent_message(role, user_name, message_cur, group_id)
                 proc = await asyncio.create_subprocess_exec(
                     "openclaw", "agent", "--agent", "main", "--model", _model,
                     "--thinking", "off",
