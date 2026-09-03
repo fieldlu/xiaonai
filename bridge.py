@@ -2055,7 +2055,7 @@ _VISION_DISABLED_UNTIL = 0.0
 
 
 async def _describe_image(img_url: str, prompt_text: str = "") -> str:
-    """识图：provider 链 GLM-4.6V-Flash → MiMo-v2.5（未配 GLM/MiMo 时回退 vision_*，即 Sensenova）。
+    """识图：provider 链 Agnes-2.5-Flash → GLM-4.6V-Flash → 文本主模型 active_*（Sensenova/MiMo）。
 
     返回描述文本或空串。历史教训：Sensenova free 多模态识图常被服务端 429（图片后端
     繁忙、响应 60-110s 或挂 ~60s 后返 429）而文本正常，故识图通道独立于文本主模型。
@@ -2105,25 +2105,25 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
             {"type": "text", "text": user_prompt}
         ]
 
-        # ---- 识图调用（provider 链：GLM-4.6V-Flash → MiMo-v2.5 → [未配时 Sensenova 回退]）----
-        # 09-03 18:29 宿舍图实测：GLM 免费档白天 1305「访问量过大」秒 429，5 次退避 55s 全败；
-        # Sensenova 图片后端挂 66s 后 429；MiMo-v2.5 稳定 8.4s 出描述。故改为链式回退：
-        #   * GLM 3 次（4/9s 退避，覆盖 30s 内短限流窗口）→ MiMo 3 次（4/9s）
-        #   * 单家重试耗尽换下一家，不再因免费档限流直接放弃识图
-        #   * transient(429/超时/空) 仍不计熔断（服务端繁忙≠服务坏），仅网络层真故障才累计熔断
+        # ---- 识图调用（provider 链：Agnes-2.5-Flash → GLM-4.6V-Flash → 与文本主模型一致）----
+        # 09-03 定版顺序（用户指定，全链免费档）：Agnes 优先（实测 base64 data URI 识图
+        # 2.5s 出描述，现价 ¥0/百万 token）；其次智谱 GLM-4.6V-Flash（免费视觉模型，白天
+        # 1305「访问量过大」偶发秒 429，退避重试常能救回；不切付费 glm-4.5v）；最后回退
+        # 文本主模型 active_*（当前 Sensenova free，其图片后端繁忙时挂 66s 后 429，仅 2 次）。
+        # 单家重试耗尽换下一家；transient(429/超时/空) 仍不计熔断（服务端繁忙≠服务坏），
+        # 仅网络层真故障才累计熔断
         _VISION_BUSY_DELAYS = (4.0, 9.0, 16.0, 25.0)   # 429/服务端繁忙: 指数退避 (第1~4次失败后)
         _VISION_SOFT_DELAYS = (2.0, 3.0, 5.0, 8.0)     # 网络/超时等: 温和退避
         _chain = []
+        if bot_config.agnes_api_key:
+            _chain.append(("agnes", bot_config.agnes_base_url, bot_config.agnes_api_key,
+                           bot_config.agnes_model, 60.0, 3))
         if bot_config.glm_api_key:
             _chain.append(("glm", bot_config.glm_base_url, bot_config.glm_api_key,
-                           bot_config.glm_model, 50.0, 3))
-        if bot_config.mimo_api_key:
-            _chain.append(("mimo", bot_config.mimo_base_url, bot_config.mimo_api_key,
-                           bot_config.mimo_model, 60.0, 3))
-        if not _chain:
-            # 未配 GLM/MiMo：维持旧行为，走 vision_*（Sensenova）110s 5 次
-            _chain.append(("sensenova", bot_config.vision_base_url, bot_config.vision_api_key,
-                           bot_config.vision_model, 110.0, 5))
+                           bot_config.glm_model, 60.0, 3))
+        # 最后与文本主模型一致（active_*：sensenova/mimo）
+        _chain.append(("text-llm", bot_config.active_base_url, bot_config.active_api_key,
+                       bot_config.active_model, 110.0, 2))
         last_reason = "unknown"
         desc = ""
         for _p_name, _v_base, _v_key, _v_model, _v_timeout, _v_attempts in _chain:
@@ -2134,8 +2134,9 @@ async def _describe_image(img_url: str, prompt_text: str = "") -> str:
                         "messages": [{"role": "user", "content": user_content}],
                         "max_tokens": 2000,
                     }
-                    # GLM/MiMo 不识别 thinking 字段；Sensenova(回退) 需显式关 reasoning，否则吞 max_tokens
-                    if _p_name == "sensenova":
+                    # GLM/Agnes 不识别 thinking 字段；Sensenova(文本主模型回退) 需显式关
+                    # reasoning，否则吞 max_tokens
+                    if _p_name == "text-llm" and "sensenova" in _v_base:
                         _payload["thinking"] = {"type": "disabled"}
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=_v_timeout)) as _sess:
                         async with _sess.post(

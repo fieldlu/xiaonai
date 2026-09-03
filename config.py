@@ -19,13 +19,19 @@ class BotConfig(BaseSettings):
     sensenova_base_url: str = "https://token.sensenova.cn/v1"
     sensenova_model: str = "sensenova-6.8-flash-lite"
 
-    # 识图专用通道（可选）：智谱 GLM-4.6V-Flash（免费视觉模型）。
-    # Sensenova free 多模态识图常被服务端 429（图片后端繁忙）而文本正常——因此识图
-    # 与文本主模型解耦：配置了 glm_api_key 后，识图请求走 GLM，文本对话仍走 active_*。
-    # 未配置 glm_api_key 时 vision_* 自动回退到 active_*（行为与未改造前一致）。
+    # 识图专用通道（可选）：智谱 GLM-4.6V-Flash（免费视觉模型；不切付费 glm-4.5v，
+    # 2026-09-03 定版全链免费）。Sensenova free 多模态识图常被服务端 429（图片后端繁忙）
+    # 而文本正常——因此识图与文本主模型解耦：配置了 glm_api_key 后，识图请求走 GLM，
+    # 文本对话仍走 active_*。未配置 glm_api_key 时 vision_* 自动回退到 active_*。
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     glm_model: str = "glm-4.6v-flash"
+
+    # Agnes（识图首选通道，2026-09-03）：agnes-2.5-flash，OpenAI 兼容 chat/completions，
+    # 支持 image_url 输入（实测 base64 data URI 可用，2.5s 出描述），现价 ¥0/百万 token。
+    agnes_api_key: str = ""
+    agnes_base_url: str = "https://api.agnes-ai.cn/v1"
+    agnes_model: str = "agnes-2.5-flash"
 
     # 其它（天气等，非 LLM 主链路）
     deepseek_api_key: str = ""
