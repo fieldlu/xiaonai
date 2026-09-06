@@ -79,8 +79,8 @@ def _parse_clock(msg):
     return hour, minute
 
 
-def _rel_day_offset(msg):
-    """相对日. 返回 (date, end_pos) 或 None."""
+def _rel_day_offset(msg, now):
+    """相对日. 返回 (date_offset_days, end_pos) 或 (None, 0)."""
     if "大后天" in msg:
         return None, 0
     if "后天" in msg:
@@ -91,10 +91,14 @@ def _rel_day_offset(msg):
         return 0, 0
     m = re.search(r"下周([一二三四五六日天])", msg)
     if m:
-        return 7 + (_WEEK_CN[m.group(1)] - 0) % 7, m.end()
+        # 下周X = 下个自然周的 X: 下周一 = today + (7 - weekday)。2026-09-07 fix:
+        # 原实现 7 + (_WEEK_CN[x] % 7) 缺 -weekday 基准, 周日说"下周一"会落到下周日。
+        return 7 + (_WEEK_CN[m.group(1)] - now.weekday()), m.end()
     m = re.search(r"周([一二三四五六日天])", msg)
     if m:
-        return (_WEEK_CN[m.group(1)] - 0) % 7, m.end()
+        # 周X = 最近的未来 X (当天即该日则指今天); 2026-09-07 fix:
+        # 原实现 (_WEEK_CN[x] - 0) % 7 是绝对偏移, 周日说"周五"会落到周四。
+        return (_WEEK_CN[m.group(1)] - now.weekday()) % 7, m.end()
     return None, 0
 
 
@@ -139,7 +143,7 @@ def _resolve(msg, now):
     clock = _parse_clock(msg)
     # 4. 日期
     date = None
-    rd, _ = _rel_day_offset(msg)
+    rd, _ = _rel_day_offset(msg, now)
     if rd is not None:
         date = now.date() + timedelta(days=rd)
     if date is None:
@@ -240,6 +244,23 @@ def parse_reminder(msg, now, uid, gid=0, at_target=None):
     ):
         return None
     if not _SET_RE.search(msg):
+        return None
+    # 2026-09-07 fix: 通知/公告类消息误设提醒防御。
+    # 本解析器被 bridge 主流程(先于 LLM)与 remind 工具路由共用; 教学通知长文
+    # 常含"提醒"字样与多处日期时间, 曾把 783 字开学通知误设成
+    # "2026-09-07 09:40"定时提醒并拿全文尾部当内容。
+    # 1) 超长消息不是提醒请求; 2) 含发布/转发群意图词的消息跳过;
+    # 3) 提醒动词必须与时间线索同句 (按句号/问号/叹号/换行/分号分句,
+    #    逗号不分句以兼容"明天9点, 记得提醒我"; 时间线索复用本模块既有正则)。
+    if len(msg) >= 120:
+        return None
+    if re.search(r"群里?发|发到|发在|发至|发布|转发|群发|发个?通[知告]|发下面|整理一下|群公告|群消息", msg):
+        return None
+    _TIME_HINT_RES = (_TIME_RE, _ABS_DATE_RE, _MD_DATE_RE, _DUR_RE, _REL_DAY_RE, _RECUR_RE)
+    if not any(
+        _SET_RE.search(sent) and any(p.search(sent) for p in _TIME_HINT_RES)
+        for sent in re.split(r"[。！？!?\n;；]+", msg)
+    ):
         return None
     send_at, rec, dow, dom = _resolve(msg, now)
     if send_at is None:

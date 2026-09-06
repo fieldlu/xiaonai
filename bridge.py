@@ -1676,26 +1676,49 @@ def _handle_reminder(msg, uid, gid):
     import subprocess, os as _os, datetime as _dt
     if not _REMINDER_VERB_RE.search(msg):
         return None
-    m = _REMINDER_TIME_RE.search(msg)
+    # 2026-09-07 fix: 通知/公告类消息误设提醒防御。
+    # 教学通知长文常含"提醒""定时"字样与多处日期, 本路由先于 LLM 执行,
+    # 曾把 783 字开学通知误设成"9月7日9:40"定时提醒并拿截断尾部当内容。
+    # 1) 超长消息 (>=120字) 不是提醒请求; 2) 含发布/转发群意图词的消息跳过;
+    # 3) 提醒时间必须与提醒动词同句, 内容只取同句中时间之后的文字。
+    # 注意: 主流程实际先走 reminder_parser.parse_reminder (含同套防御),
+    # 本函数为 _inject_command_data 旧路径兜底。
+    if len(msg) >= 120:
+        return None
+    if re.search(r"群里?发|发到|发在|发至|发布|转发|群发|发个?通[知告]|发下面|整理一下|群公告|群消息", msg):
+        return None
+    # 分句规则: 句号/问号/叹号/换行/分号分句; 逗号不分句 (兼容"明天9点, 记得提醒我"式表达)。
+    m = None
+    m2 = None
+    hit_sent = None
+    for sent in re.split(r"[。！？!?\n;；]+", msg):
+        if not _REMINDER_VERB_RE.search(sent):
+            continue
+        mm = _REMINDER_TIME_RE.search(sent)
+        if mm:
+            m, hit_sent = mm, sent
+            break
+        mm2 = _REMINDER_TIME_RE2.search(sent)
+        if mm2:
+            m2, hit_sent = mm2, sent
+            break
+    if not m and not m2:
+        return None
     send_at = None
     if m:
         send_at = "%04d-%02d-%02d %02d:%02d" % (int(m.group(1)), int(m.group(2)),
                                                   int(m.group(3)), int(m.group(4)), int(m.group(5)))
         time_end = m.end()
     else:
-        m2 = _REMINDER_TIME_RE2.search(msg)
-        if m2:
-            now = _dt.datetime.now()
-            year = now.year
-            if now.month > int(m2.group(1)):
-                year += 1
-            send_at = "%04d-%02d-%02d %02d:%02d" % (year, int(m2.group(1)), int(m2.group(2)),
-                                                      int(m2.group(3)), int(m2.group(4) or 0))
-            time_end = m2.end()
-        else:
-            return None
-    # 提取内容: 时间之后的文字, 去提醒/命令前缀
-    content = msg[time_end:].strip()
+        now = _dt.datetime.now()
+        year = now.year
+        if now.month > int(m2.group(1)):
+            year += 1
+        send_at = "%04d-%02d-%02d %02d:%02d" % (year, int(m2.group(1)), int(m2.group(2)),
+                                                  int(m2.group(3)), int(m2.group(4) or 0))
+        time_end = m2.end()
+    # 提取内容: 时间所在句中时间之后的文字, 去提醒/命令前缀
+    content = hit_sent[time_end:].strip()
     content = re.sub(r"^(提醒我|帮我提醒|请提醒|提醒|定时|闹钟|请|帮我|设置|设个|设一个|记得)", "", content).strip()
     content = content.strip("，。！？,;!? ")
     if not content:
