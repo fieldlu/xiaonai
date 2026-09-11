@@ -4,6 +4,24 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 与
 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.0.18] - 2026-09-11
+
+### 修复
+- **QQ 掉线探测缺口**（`scripts/health_check.sh`）：掉线检测原先只看 OneBot 响应信封
+  `get_login_info` 的 `status` 字段，但 NapCat 在账号被踢下线时该字段**仍返回 `ok`**——
+  真正的离线标志在 `get_status` 的 `data.online`。结果是掉线期间健康检查持续报告正常
+  （实测一次 2 小时掉线，期间每 15 分钟一次检查全部 `exit=0`），自愈永不触发。
+  - 改为探测 `get_status` 的 `online` 字段，返回 `true` / `false` / `unreachable` 三分支；
+  - 去掉原有 `uptime > 7200` 前置条件（该条件使 2 小时内的掉线同样被跳过），
+    改用 90 秒启动保护期，避免与开机流程抢跑；
+  - 判定离线后重启 QQ 与 bridge，若快速登录失败（QQ 已作废登录令牌）则主动通知
+    管理员并附二维码路径；判定 `unreachable` 时按原有「进程假死」路径处理。
+  - 健康检查频率由每 15 分钟收紧至每 5 分钟。
+- **离线时发送空转**（`bridge.py`）：`napcat_api` 在账号离线时仍会等待完整的 WebSocket
+  超时（默认 10 秒）才失败，一批推送重试会累计浪费数十秒。新增在线态预检
+  （`_qq_online_cached`，5 秒进程内缓存，探测失败视为未知而非离线），已知离线时立即
+  返回 `{"status": "failed", "error": "qq_offline"}`，不再进入 WS 等待。
+
 ## [0.0.17] - 2026-09-07
 
 ### 变更

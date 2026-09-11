@@ -148,21 +148,71 @@ for lock in "$SESSIONS_DIR"/*.lock; do
 done
 [ "$LOCK_CLEANED" -gt 0 ] && { log "  cleaned ${LOCK_CLEANED} stale lock(s)"; ACTIONS="$ACTIONS locks:$LOCK_CLEANED"; }
 
-# ---------- 4. hung NapCat detection (robust) ----------
-# Old logic restarted on "0 messages in 30min" — a WEAK signal that false-positives
-# on every quiet window (and only now works since restarts use sudo). Real failure
-# mode of NapCat is a HUNG process: systemd still says active, but the OneBot API
-# no longer answers. So restart only when the liveness probe actually fails.
+# ---------- 4. QQ login-state detection (online-aware) ----------
+# HISTORY: the previous probe only checked the OneBot envelope `"status": "ok"`.
+# NapCat returns status=ok from get_login_info EVEN WHEN Tencent has kicked the
+# account offline -- the offline flag lives in data.online of /get_status.
+# Result: on 2026-09-11 a 13:27 kick went unnoticed until 15:29 (2h outage,
+# health check reported exit=0 the whole time).
+#
+# Now:
+#   - probe /get_status and require  "online": true   (real liveness)
+#   - no 2h uptime gate (that also skipped short outages)
+#   - only a 90s settle window, so we never race the boot sequence
+#   - a dead session can NOT be recovered by fast-login (QQ invalidates the
+#     token) -> restart to surface a fresh QR, and alert the admin.
+QQ_SETTLE=90    # seconds after NapCat start before we judge its login state
+ONLINE=""
+
+qq_online_probe() {
+  # echoes "true", "false" or "unreachable"
+  local raw
+  raw="$(curl -s --connect-timeout 3 --max-time 6 http://127.0.0.1:3000/get_status 2>/dev/null)" || { echo unreachable; return; }
+  [ -n "$raw" ] || { echo unreachable; return; }
+  case "$raw" in
+    *'"online":true'*|*'"online": true'*)   echo true ;;
+    *'"online":false'*|*'"online": false'*) echo false ;;
+    *) echo unreachable ;;
+  esac
+}
+
 if svc_active xiaonai-qq && svc_active xiaonai-bridge; then
   TS="$(systemctl show xiaonai-qq -p ActiveEnterTimestamp --value 2>/dev/null)"
   UP=0; NOW_S="$(date +%s)"
   if [ -n "$TS" ]; then UP="$(date -d "$TS" +%s 2>/dev/null || echo 0)"; fi
   UP="${UP:-0}"
+
   # only trust a parsed, non-future uptime — parse failure must never trigger
-  if [ "$UP" -gt 0 ] && [ "$UP" -lt "$NOW_S" ] && [ $((NOW_S - UP)) -gt 7200 ]; then
-    if ! curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:3000/get_login_info 2>/dev/null \
-        | grep -q '"status": "ok"'; then
-      log "  NapCat unresponsive at :3000 (uptime>2h) — restart qq+bridge"
+  if [ "$UP" -gt 0 ] && [ "$UP" -lt "$NOW_S" ] && [ $((NOW_S - UP)) -gt "$QQ_SETTLE" ]; then
+    ONLINE="$(qq_online_probe)"
+    if [ "$ONLINE" = "false" ]; then
+      # account is logged out / kicked. This is NOT a hung process: NapCat is
+      # fine, the QQ session is gone. Restart to get a scannable QR code.
+      log "  QQ session OFFLINE (kicked?) — restarting qq+bridge to re-login"
+      if mark_restart qq-offline; then
+        restart_svc xiaonai-qq && sleep 6 && restart_svc xiaonai-bridge
+        SILENT=1; ACTIONS="$ACTIONS qq-offline"
+
+        # fast-login is expected to fail here; tell admin a QR scan is needed
+        sleep 5
+        AFTER="$(qq_online_probe)"
+        if [ "$AFTER" != "true" ]; then
+          QR="/root/Napcat/opt/QQ/resources/app/app_launcher/napcat/cache/qrcode.png"
+          sudo -n cp "$QR" /tmp/qrcode.png 2>/dev/null || true
+          sudo -n chmod 644 /tmp/qrcode.png 2>/dev/null || true
+          python3 /opt/xiaonai/health_notify.py report \
+            "⚠️ 小奈 QQ 掉线，已重启尝试重连，但快速登录失败——需要扫码重新登录。二维码: /tmp/qrcode.png  请用绑定小奈账号的手机 QQ 扫码" \
+            --key "qq-offline-$(date +%Y%m%d%H)" --dedup 30 >>"$LOG" 2>&1 || true
+        else
+          log "  QQ reconnected automatically after restart"
+          python3 /opt/xiaonai/health_notify.py report \
+            "✅ 小奈 QQ 掉线后已自动重连成功。" \
+            --key "qq-offline-ok-$(date +%Y%m%d%H)" --dedup 30 >>"$LOG" 2>&1 || true
+        fi
+      fi
+    elif [ "$ONLINE" = "unreachable" ]; then
+      # NapCat process up but OneBot API not answering -> genuinely hung
+      log "  NapCat OneBot API unreachable — restart qq+bridge"
       if mark_restart silent-qq; then
         restart_svc xiaonai-qq && sleep 5 && restart_svc xiaonai-bridge
         SILENT=1; ACTIONS="$ACTIONS silent-qq"
@@ -217,7 +267,7 @@ WARP_RSS="${WARP_RSS:-0}"
 if [ "$WARP_RSS" -gt 512000 ]; then
   log "  warp-svc RSS ${WARP_RSS}KB > 500MB — restarting (leak guard)"
   if mark_restart warp-mem; then
-    if timeout 90 /opt/xiaonai/scripts/warp_restart.sh >/dev/null 2>&1; then
+    if timeout 90 /opt/xiaonai/warp_restart.sh >/dev/null 2>&1; then
       log "  warp-svc restarted, proxy OK"
       ACTIONS="$ACTIONS warp-mem"
     else
@@ -258,7 +308,7 @@ SELF_OK="not-run"
 SELF_SUMMARY=""
 if [ "$PROBLEM" -eq 1 ] || [ -n "$SLOT" ]; then
   # full probe (L1 NapCat + L3 agent) so failures can be diagnosed AND fixed
-  SELF_JSON="$(python3 /opt/xiaonai/admin/self_test.py --full 2>/dev/null)"
+  SELF_JSON="$(python3 /opt/xiaonai/self_test.py --full 2>/dev/null)"
   if echo "$SELF_JSON" | grep -q '"ok": true'; then
     SELF_OK="pass"
   else
@@ -288,7 +338,7 @@ if [ "$PROBLEM" -eq 1 ] || [ -n "$SLOT" ]; then
     SELF_OK="fail"
     for _i in 1 2 3; do
       sleep 10
-      SELF_JSON2="$(python3 /opt/xiaonai/admin/self_test.py --full 2>/dev/null)"
+      SELF_JSON2="$(python3 /opt/xiaonai/self_test.py --full 2>/dev/null)"
       if echo "$SELF_JSON2" | grep -q '"ok": true'; then
         SELF_OK="fixed"
         SELF_SUMMARY="$(echo "$SELF_JSON2" | grep -o '"summary": "[^"]*"' | head -1 | sed 's/.*: "//;s/"$//')"
@@ -323,19 +373,19 @@ NOTIFY_MSG="${NOTIFY_MSG}\n🧪 自检: ${SELF_SUMMARY:-未触发}"
 
 if [ -n "$SLOT" ]; then
   # scheduled self-test -> always report to admin once per slot per day
-  python3 /opt/xiaonai/admin/health_notify.py report \
+  python3 /opt/xiaonai/health_notify.py report \
     "$(printf '%b\n' "${NOTIFY_MSG}" "磁盘${DISK_USED}% · 内存${MEM_AVAIL}MB")" \
     --key "sched-$(date +%Y%m%d)-${SLOT}" --dedup 1440 >>"$LOG" 2>&1 || true
 elif [ "$PROBLEM" -eq 1 ]; then
   # reactive -> report while problems persist (dedup 55min, escalating)
-  python3 /opt/xiaonai/admin/health_notify.py report \
+  python3 /opt/xiaonai/health_notify.py report \
     "$(printf '%b\n' "${NOTIFY_MSG}" "磁盘${DISK_USED}% · 内存${MEM_AVAIL}MB")" \
     --key "run-$(date +%Y%m%d)" --dedup 55 >>"$LOG" 2>&1 || true
 fi
 
 # ---------- 13. daily digest (~21:30, once/day) ----------
 if [ "$HM" -ge 2130 ] && [ "$HM" -lt 2145 ]; then
-  python3 /opt/xiaonai/admin/health_notify.py daily >>"$LOG" 2>&1 || true
+  python3 /opt/xiaonai/health_notify.py daily >>"$LOG" 2>&1 || true
 fi
 
 # ---------- 14. publish machine-readable state ----------

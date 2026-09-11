@@ -313,8 +313,49 @@ async def ws_health_monitor():
             log.warning("WS health: no messages for 120s, may be half-open")
 
 
+# --- online gate (2026-09-11) ---
+# Cheap QQ-login-state probe, so we never sit through a full WS timeout when
+# Tencent has already kicked the session. get_status is the ONLY endpoint that
+# exposes data.online (get_login_info returns status=ok even when offline).
+# Returns True / False / None (None = unknown -> caller must not block).
+_QQ_ONLINE_CACHE = {"t": 0.0, "v": None}
+
+
+def _qq_online_cached(ttl=5.0):
+    import time as _t
+    import urllib.request as _ur
+    now = _t.time()
+    c = _QQ_ONLINE_CACHE
+    if now - c["t"] < ttl and c["v"] is not None:
+        return c["v"]
+    val = None
+    try:
+        req = _ur.Request("http://127.0.0.1:3000/get_status")
+        with _ur.urlopen(req, timeout=2.5) as r:
+            raw = r.read().decode("utf-8", "ignore")
+        if '"online"' in raw:
+            # normalize whitespace: {"online": true} vs {"online":true}
+            norm = re.sub(r'\s+', '', raw)
+            if '"online":true' in norm:
+                val = True
+            elif '"online":false' in norm:
+                val = False
+    except Exception:
+        val = None
+    c["t"] = now
+    c["v"] = val
+    return val
+
 async def napcat_api(action, params, timeout=10):
     import websockets as ws_mod
+    # online gate (2026-09-11): if QQ session is known-offline, fail fast
+    # instead of waiting out the WS timeout on a send that cannot succeed.
+    if action != "get_status":
+        _on = _qq_online_cached()
+        if _on is False:
+            return {"status": "failed", "error": "qq_offline",
+                    "wording": "\u5f53\u524d QQ \u4f1a\u8bdd\u5df2\u6389\u7ebf\uff0c"
+                               "\u5df2\u8df3\u8fc7\u53d1\u9001\u4ee5\u907f\u514d\u65e0\u6548\u91cd\u8bd5"}
     try:
         async with ws_mod.connect("ws://127.0.0.1:3001", close_timeout=5) as ws:
             echo_id = f"api_{int(time.time()*1000)}"
